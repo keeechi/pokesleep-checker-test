@@ -1,7 +1,7 @@
 // ===========================
 // Config / Constants
 // ===========================
-const DATA_URL = 'pokemon_data.json'; // 同リポジトリ直置き想定
+const DATA_URL = 'pokemon_data_cleaned.json'; // 同リポジトリ直置き想定
 const LS_KEY = 'psleep-check-v2';
 
 const FIELDS = [
