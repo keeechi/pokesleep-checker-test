@@ -1,12 +1,3 @@
-/* 文字や表の基本 */
-body { background: #f8fafc; }
-table { font-size: 0.95rem; }
-thead.table-light.sticky-header th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
 /* チェック状態の配色 */
 .cell-checked {
   background: #e7f1ff !important; /* 青系（Bootstrapに寄せる） */
@@ -14,12 +5,6 @@ thead.table-light.sticky-header th {
 .cell-disabled {
   color: #6c757d;
   background: #f1f3f5;
-}
-
-/* スクロール時の見やすさ */
-#allFacesTableWrap {
-  max-height: 70vh;
-  overflow: auto;
 }
 
 /* 小さめ端末の余白 */
@@ -34,4 +19,683 @@ thead.table-light.sticky-header th {
   height: 40px;
   object-fit: contain;    /* 縦横比を維持 */
   display: inline-block;
+}
+
+/* アイコンセル */
+#allFacesTable .name-cell {
+  min-width: 72px;
+  width: 72px;
+  max-width: 72px;
+  padding: 4px 0;
+}
+
+#allFacesTable .poke-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#allFacesTable .poke-icon svg {
+  display: block;
+  border: 1px solid #bbb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* ── アイコン＋2行ラベル ───────────────────────── */
+/* ※ タブ本体のパディング/サイズ指定は下部の PC/スマホ用メディアクエリに集約 */
+#mainTabs .tab-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 画像要素の共通（寸法はメディアクエリ側で指定） */
+#mainTabs .tab-img {
+  display: block;
+  flex: 0 0 auto;
+}
+
+/* ラベルは2行・中央揃え・小さめ */
+#mainTabs .tab-label {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;     /* 2行に分けるのは .l1 .l2 の改行で */
+  line-height: 1.05;
+}
+
+#mainTabs .tab-label .l1,
+#mainTabs .tab-label .l2,
+#mainTabs .tab-label .l3 {
+  font-size: 10px;         /* 小さめ。後で自由に調整OK */
+  font-weight: 600;        /* 視認性を少し上げる */
+}
+
+/* ==================== Summary Table Design ==================== */
+/* うとうと（1行目） */
+.summary-table tbody tr:nth-child(1) > th,
+.summary-table tbody tr:nth-child(1) > td {
+  background-color: #FFF2CC;
+}
+
+/* すやすや（2行目） */
+.summary-table tbody tr:nth-child(2) > th,
+.summary-table tbody tr:nth-child(2) > td {
+  background-color: #DEF4F8;
+}
+
+/* ぐっすり（3行目） */
+.summary-table tbody tr:nth-child(3) > th,
+.summary-table tbody tr:nth-child(3) > td {
+  background-color: #DAE3F3;
+}
+
+.field-icon {
+  height: 24px;   /* アイコンの高さを統一 */
+  vertical-align: middle;
+}
+
+/* 1) フォントを一律で 2pt 小さく */
+.summary-table {
+  font-size: calc(1rem - 2pt);
+}
+
+/* 2) セル内レイアウト統一（分子／区切り／分母／(％)） */
+.summary-table .summary-cell {
+  text-align: center;
+  line-height: 1.15;
+}
+.summary-table .summary-cell .sum-top { font-weight: 600; }
+.summary-table .summary-cell .sum-mid { /* 必要なら調整 */ }
+.summary-table .summary-cell .sum-per { opacity: 0.75; }
+
+/* 2-β) 区切り線：中央寄せ＋長さを「5桁分」目安に短縮 */
+.summary-table .summary-cell .sum-hr {
+  height: 1px;
+  background: currentColor;
+  opacity: 0.3;
+  margin: 2px auto;   /* 中央寄せ */
+  width: 3.5em;       /* ← フォント依存。3.5em ≒ 5桁分の長さ。調整はここ */
+}
+
+/* ① 左端（ヘッダー列）の幅を“だけ”狭める */
+.summary-table .summary-lefthead-col,            /* thead 1列目(空セル) */
+.summary-table tbody th.summary-lefthead {       /* tbody 1列目(アイコン/合計) */
+  width: 56px;
+  min-width: 56px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+/* ② 左端セル内のアイコンを中央揃え＆サイズ調整 */
+.summary-table tbody th.summary-lefthead .summary-icon {
+  display: block;    /* ブロック化して */
+  margin: 0 auto;    /* 左右中央へ */
+  height: 32px;      /* お好みで 20〜28px */
+  width: auto;
+}
+
+/* ③ “合計”テキストの見栄え（お好み） */
+.summary-table tbody th.summary-lefthead.fw-semibold {
+  line-height: 1.1;
+}
+
+/* （任意）数字が詰まりすぎる場合の縦余白微調整 */
+.summary-table td,
+.summary-table th {
+  vertical-align: middle;
+  /* padding: 0.25rem 0.5rem;  ← 必要なら解放して調整 */
+}
+
+/* 分子の右にアイコンを置くための行レイアウト */
+.summary-table .summary-cell .sum-top-row{
+  display:inline-flex;
+  align-items:baseline;   /* 数字のベースラインに揃える */
+  gap:4px;
+}
+
+/* アイコンは数字サイズに合わせる：1em四方。非表示でも幅は確保 */
+.summary-table .summary-cell .sum-badge{
+  width:1em;
+  height:1em;
+  object-fit:contain;
+  flex:0 0 auto;
+  vertical-align:middle;
+}
+
+/* 分子＋バッジを横並び（バッジがある時だけ使われる） */
+.summary-table .summary-cell .sum-top-row{
+  display:inline-flex;
+  align-items:baseline;   /* 数字のベースラインに揃える */
+  gap:4px;
+}
+
+/* バッジは数字のサイズ＝1em に合わせる */
+.summary-table .summary-cell .sum-badge{
+  width:1em;
+  height:1em;
+  object-fit:contain;
+  flex:0 0 auto;
+  vertical-align:middle;
+}
+
+/* ===== フィールド別寝顔一覧（ポケモン列の体裁） ===== */
+#pane-byfield .byfield-name-cell { text-align: center; vertical-align: middle; }
+#pane-byfield .byfield-name-cell .pf-wrap { 
+  width: calc(36px + 14px);   /* アイコン＋余白分。ICON_SIZE_FIELD=36pxを想定 */
+  margin: 0 auto;
+}
+#pane-byfield .byfield-icon {
+  width: 36px; height: 36px; line-height: 0; margin: 0 auto;
+}
+#pane-byfield .byfield-icon svg {
+  display: block;
+  border: 1px solid #bbb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+#pane-byfield .byfield-name-cell .pf-text {
+  margin-top: 4px; line-height: 1.2;
+  word-break: break-word; white-space: normal;
+}
+#pane-byfield .byfield-name-cell .pf-no {
+  font-size: 6px; color: #6c757d;
+}
+#pane-byfield .byfield-name-cell .pf-name {
+  font-weight: 600; font-size: 7px;
+  max-width: calc(36px + 10px);
+  margin: 0 auto;
+}
+
+/* ===== フィールド別寝顔一覧（睡眠タイプ列） ===== */
+#pane-byfield .type-cell { 
+  text-align: center; 
+  font-size: 9pt; 
+}
+
+/* ◓ + 数字 の小型バッジ */
+.rank-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 0.9rem; /* 必要なら調整 */
+  line-height: 1;
+}
+.rank-chip .rank-ball { font-weight: 700; }
+.rank-chip .rank-num  { font-weight: 600; }
+
+/* クリックできるセルの見た目 */
+td.toggle-cell {
+  cursor: pointer;
+  user-select: none;
+}
+td.toggle-cell:hover {
+  filter: brightness(0.98);
+}
+
+/* 検索結果が空のときの「COMPLETED」表示（かわいいバッジ風） */
+.completed-msg {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  background: #fff7d6;
+  border: 1px solid #f4e2a1;
+  font-weight: 800;
+  letter-spacing: .5px;
+}
+.completed-msg::before { content: "✨"; }
+
+/* ポケモンセル共通（既存 byfield と共有） */
+.byfield-name-cell .pf-wrap { display:flex; flex-direction:column; align-items:center; }
+.byfield-name-cell .byfield-icon svg { display:block; border:1px solid #bbb; border-radius:10px; overflow:hidden; }
+
+/* ▼ ミニ表（逆引きシート上部） */
+#rankMiniSummary {
+  --uto-bg:  #fff7cc; /* うとうと：淡い黄色 */
+  --suya-bg: #e6f6ff; /* すやすや：淡い水色 */
+  --gusu-bg: #d9e8ff; /* ぐっすり：淡い青 */
+}
+
+/* カラム配色（th/td 両方に適用） */
+#rankMiniSummary th.col-uto,  #rankMiniSummary td.col-uto  { background: var(--uto-bg); }
+#rankMiniSummary th.col-suya, #rankMiniSummary td.col-suya { background: var(--suya-bg); }
+#rankMiniSummary th.col-gusu, #rankMiniSummary td.col-gusu { background: var(--gusu-bg); }
+
+/* 合計カラムは太字 */
+#rankMiniSummary th.col-total,
+#rankMiniSummary td.col-total {
+  font-weight: 700;
+}
+
+/* 逆引きフィルター（横並び） */
+.filter-bar { display:flex; flex-direction:column; align-items:flex-start; gap:10px; }
+.filter-item { display:flex; flex-direction:row; align-items:center; gap:8px; white-space:nowrap; }
+.filter-item label { margin:0 !important; font-weight:500; }
+.filter-item .form-select { width:auto; display:inline-block; }
+@media (min-width: 768px) {
+  .filter-bar { flex-direction:row; flex-wrap:nowrap; align-items:center; gap:12px 16px; }
+}
+
+/* ==== stickyの大前提：縦overflowを可視化（祖先に overflow-y があると sticky は死ぬ） ==== */
+.tab-content,
+.tab-pane,
+#pane-allfaces, #pane-byfield, #pane-search,
+#pane-allfaces .card, #pane-byfield .card, #pane-search .card,
+#pane-allfaces .card-body, #pane-byfield .card-body, #pane-search .card-body {
+  overflow-y: visible !important;
+}
+/* 横スクロールだけ許可（縦はvisible） */
+#pane-allfaces .table-responsive,
+#pane-byfield  .table-responsive,
+#pane-search   .table-responsive {
+  overflow-x: auto;
+  overflow-y: visible !important;
+}
+
+/* ==== フィルター群（pane-sticky-wrap）は従来通り sticky ==== */
+:root { --sticky-top: 48px; } /* JSで更新 */
+.pane-sticky-wrap{
+  position: sticky;
+  top: var(--sticky-top);
+  z-index: 1020;         /* ヘッダーより前面 */
+  background:#fff;
+  padding:.5rem 0;
+  border-bottom:1px solid rgba(0,0,0,.075);
+}
+
+/* 既存の sticky 指定を完全無効化 */
+thead.is-sticky { position: static !important; top:auto !important; }
+
+/* フローティングヘッダーの土台（未定義なら追加、定義済みなら上書き） */
+.floating-head{
+  position: fixed;
+  left: 0; top: 0;
+  z-index: 1015;           /* フィルター(1020)より一段下 */
+  display: none;
+  background:#fff;
+  border-bottom: 1px solid rgba(0,0,0,.12);
+  pointer-events: none;     /* iOSでのスワイプ阻害を回避 */
+  will-change: transform;
+  transform: translate3d(0,0,0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  contain: layout paint style;
+}
+.floating-head table{ margin:0 !important; border-collapse:separate; border-spacing:0; background:#fff; }
+.floating-head thead th, .floating-head thead td{ background:#fff; background-clip:padding-box; white-space:nowrap; }
+
+/* バックアップ（文字タブ）も高さを揃えて押しやすく） */
+#mainTabs .nav-link:not(.tab-icon) {
+  padding: 6px 12px;
+  min-height: 50px;
+  white-space: nowrap;
+}
+
+/* ハンバーガーメニュー（常に最前面に重ねる） */
+#hamburgerMenu {
+  display:none;
+  position:fixed !important;   /* viewport基準で固定 */
+  top:0; left:0;               /* JSで座標を上書き */
+  z-index: 2147483647 !important; /* ほぼ絶対に負けない最大値 */
+  background:#fff;
+  color:#333;
+  border:1px solid rgba(0,0,0,.15);
+  border-radius:.5rem;
+  box-shadow:0 6px 20px rgba(0,0,0,.15);
+  width:max-content;
+  max-width:calc(100vw - 24px);
+  white-space:nowrap;
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
+}
+
+#hamburgerMenu ul{ list-style:none; margin:0; padding:.25rem 0; }
+#hamburgerMenu li{ margin:0; }
+#hamburgerMenu a{
+  display:block;
+  padding:.5rem .875rem;
+  text-decoration:none;
+  color:inherit;
+}
+#hamburgerMenu a:hover{ background:#f6f6f6; color:inherit; }
+
+/* ハンバーガーボタンの押しやすさ（dropdown不使用のため個別指定） */
+#tab-menu{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:6px 12px;
+  min-height:50px;
+  min-width:50px;
+}
+
+:root { --sticky-top: 48px; }  /* JSで上書きされる前提の初期値 */
+
+.pane-sticky-wrap{
+  position: sticky;
+  top: var(--sticky-top);
+  z-index: 1020;
+  background:#fff;
+  padding:.125rem 0;            /* 余白を最小化。必要に応じて 0 ～ .5rem */
+  border-bottom:1px solid rgba(0,0,0,.075);
+}
+
+thead.is-sticky { position: static !important; top: auto !important; }
+
+/* 逆引きシート上部のミニ表（#rankMiniSummary） */
+#rankMiniSummary {
+  --uto-bg:  #fff7cc; /* うとうと：淡い黄色 */
+  --suya-bg: #e6f6ff; /* すやすや：淡い水色 */
+  --gusu-bg: #d9e8ff; /* ぐっすり：淡い青 */
+}
+
+/* ヘッダと本文の同一列に色を付ける */
+#rankMiniSummary th.col-uto,  #rankMiniSummary td.col-uto  { background: var(--uto-bg); }
+#rankMiniSummary th.col-suya, #rankMiniSummary td.col-suya { background: var(--suya-bg); }
+#rankMiniSummary th.col-gusu, #rankMiniSummary td.col-gusu { background: var(--gusu-bg); }
+
+/* 合計列は太字 */
+#rankMiniSummary th.col-total,
+#rankMiniSummary td.col-total {
+  font-weight: 700;
+}
+
+@media (max-width: 576px) {
+  /* === 全寝顔一覧 === */
+  #pane-allfaces #allfacesFilters.filters-compact,
+  #pane-allfaces #allfacesFilters.filters-compact label,
+  #pane-allfaces #allfacesFilters.filters-compact .form-label,
+  #pane-allfaces #allfacesFilters.filters-compact .form-control,
+  #pane-allfaces #allfacesFilters.filters-compact select,
+  #pane-allfaces #allfacesFilters.filters-compact .form-select,
+  #pane-allfaces #allfacesFilters.filters-compact option,
+  /* 一括ON/OFFバーもまとめて 0.85x */
+  #pane-allfaces #allfacesBulkBar.filters-compact,
+  #pane-allfaces #allfacesBulkBar.filters-compact .btn,
+  #pane-allfaces #allfacesBulkBar.filters-compact .small,
+  #pane-allfaces #allfacesBulkBar.filters-compact .form-text {
+    font-size: 0.85em;
+    line-height: 1.15;
+  }
+
+  /* === フィールド別一覧 === */
+  #pane-byfield #byfieldFilters.filters-compact,
+  #pane-byfield #byfieldFilters.filters-compact label,
+  #pane-byfield #byfieldFilters.filters-compact .form-label,
+  #pane-byfield #byfieldFilters.filters-compact .form-control,
+  #pane-byfield #byfieldFilters.filters-compact select,
+  #pane-byfield #byfieldFilters.filters-compact .form-select,
+  #pane-byfield #byfieldFilters.filters-compact option {
+    font-size: 0.85em;
+    line-height: 1.15;
+  }
+}
+
+/* フィルターUI全体を少し小さく（親に .filters-compact を付ける） */
+@media (max-width: 576px) {
+  #pane-search #rankSearchFilters.filters-compact,
+  #pane-search #rankSearchFilters.filters-compact label,
+  #pane-search #rankSearchFilters.filters-compact .form-label,
+  #pane-search #rankSearchFilters.filters-compact select,
+  #pane-search #rankSearchFilters.filters-compact .form-select,
+  #pane-search #rankSearchFilters.filters-compact .btn,
+  #pane-search #rankSearchFilters.filters-compact .form-check-label,
+  #pane-search #rankSearchFilters.filters-compact input[type="checkbox"] + label,
+  /* ネイティブプルダウン内の項目（Android/PCは効く。iOSは制約あり） */
+  #pane-search #rankSearchFilters.filters-compact option {
+    font-size: 0.85em;
+    line-height: 1.15;
+  }
+}
+
+/* ── 逆引きシート：フィルター上下の余白 ───────────────── */
+#pane-search #rankSearchFilters {
+  margin-top: .5rem;     /* ミニ要約(#rankMiniSummary)との間 */
+  margin-bottom: .5rem;  /* 結果テーブルとの間 */
+}
+
+/* 画面が狭いときは少しだけ詰める */
+@media (max-width: 576px) {
+  #pane-search #rankSearchFilters {
+    margin-top: .375rem;
+    margin-bottom: .5rem;
+  }
+}
+
+/* スマホ時：ヘッダーを自動で少し縮小、折り返しは発生させない */
+@media (max-width: 576px) {
+  #rankSearchTable thead th {
+    white-space: nowrap;                       /* 折り返し禁止 */
+    font-size: clamp(10px, 2.6vw, 12px);       /* 端末幅に応じて 10〜12px の範囲で自動調整 */
+  }
+}
+
+/* 逆引き（フィールド・ランクから検索）のポケモン名は端末共通で 9pt に固定 */
+#pane-search .byfield-name-cell .pf-text .pf-name {
+  font-size: 7pt !important;
+  line-height: 1.2;
+}
+
+/* 説明文用 */
+#rankHelpText {
+  font-size: 0.9rem;
+  line-height: 1.3;
+  opacity: 0.9;
+}
+
+/* 逆引きの結果テーブル（例：.table-rank-result）の“ポケモン名”だけ微縮小 */
+.table-rank-result td.col-pokemon .poke-name {
+  font-size: 0.95em;
+  font-weight: 500; /* 任意。視認性維持 */
+}
+
+.filter-bar .filter-item--sort { grid-column: 1 / -1; }
+
+/* === Pokemon meta: Noは6pt / Nameは7pt（全タブ統一）=== */
+#pane-allfaces .pf-no,
+#pane-byfield  .pf-no,
+#pane-search   .pf-no {
+  font-size: 6pt !important;
+  line-height: 1.1;
+}
+
+#pane-allfaces .pf-name,
+#pane-byfield  .pf-name,
+#pane-search   .pf-name {
+  font-size: 7pt !important;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+/* markPokemonNameSpans() が作る .poke-name は親のサイズを継承させる */
+#pane-allfaces .pf-name .poke-name,
+#pane-byfield  .pf-name .poke-name,
+#pane-search   .pf-name .poke-name {
+  font-size: inherit !important;
+}
+
+/* フィールド別寝顔一覧のタブ（ワカクサ本島〜EX）を 0.85x に */
+#pane-byfield #fieldTabs.tabs-compact {
+  gap: 6px;                  /* ボタン間の間隔を少し詰める */
+}
+#pane-byfield #fieldTabs.tabs-compact .nav-link {
+  font-size: 0.85em;         /* 文字サイズを 0.85x */
+  padding: .25rem .5rem;     /* 余白もやや小さめに */
+  line-height: 1.1;
+  white-space: nowrap;       /* タブ内で折り返さない */
+}
+
+/* ===== Tabs: base ===== */
+#mainTabs { flex-wrap: nowrap !important; }
+#mainTabsWrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#mainTabsWrap::-webkit-scrollbar { display: none; }
+
+#mainTabs .nav-link { 
+  display:inline-flex; align-items:center; gap:8px;
+  line-height:1; white-space:nowrap;
+}
+#mainTabs .nav-link.tab-icon { justify-content:center; }
+
+/* ===== ≥769px (PC/タブレット) ===== */
+@media (min-width: 769px){
+  #mainTabs { gap: 8px; }
+  #mainTabs .nav-link { padding: 6px 12px; }
+  #mainTabs .nav-link.tab-icon { 
+    min-height: 65px; 
+    min-width: 50px;
+    width: var(--tab-eq-width, auto); /* 等幅はPCだけ */
+  }
+  #mainTabs .tab-img { width: 38px; height: 38px; }
+}
+
+/* ===== ≤768px (スマホ・薄型) — これを“最後”に置く ===== */
+@media (max-width: 768px){
+  #mainTabs.nav-tabs { gap: 4px; }
+
+  #mainTabs .nav-link {
+    padding: 6px 8px;
+    font-size: .82rem;
+  }
+  #mainTabs .nav-link.tab-icon {
+    padding: 6px 8px;
+    min-height: 44px;         /* ← 65pxを上書き */
+    min-width: 44px;
+    width: auto;              /* ← 等幅を解除 */
+    gap: 6px;
+  }
+  /* 画像寸法は .tab-img に統一（旧 .tab-ic は廃止） */
+  #mainTabs .tab-img { width: 24px; height: 24px; }
+}
+
+/* ===== HowTo（ボトムシート） ===== */
+.howto-backdrop[hidden],
+.howto-sheet[hidden] { display: none !important; }
+
+.howto-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.4);
+  z-index: 2147483642;
+  opacity: 0; transition: opacity .2s ease;
+}
+.howto-backdrop.show { opacity: 1; }
+
+.howto-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  z-index: 2147483643;
+  background: #fff;
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+  box-shadow: 0 -8px 24px rgba(0,0,0,.18);
+  transform: translateY(100%);
+  transition: transform .24s ease;
+  max-height: 75vh;         /* 画面の75%まで */
+  overflow: hidden;
+  contain: layout paint style;
+}
+.howto-sheet.show { transform: translateY(0); }
+
+.howto-sheet__handle{
+  width: 44px; height: 4px; border-radius: 999px;
+  background: #d5d5d5; margin: 8px auto 4px;
+}
+.howto-sheet__header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 6px 12px 2px;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+.howto-sheet__body{
+  padding: 10px 14px 16px;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.howto-list{ margin: 0 0 12px 1.1em; padding: 0; }
+.howto-list li{ margin: .25rem 0; }
+
+/* セクション見出しは本文より +2pt & 太字 */
+.howto-sec-title{
+  font-size: calc(1rem + 2pt);
+  line-height: 1.2;
+  margin: 10px 0 6px;
+  font-weight: 700;
+}
+
+/* 本文は少しだけコンパクト気味（全体に合わせる） */
+.howto-sheet__body{ font-size: .95rem; }
+
+/* 開いている間は背面スクロール抑止（iOS対策含む） */
+body.is-howto-open { overflow: hidden; }
+
+/* ===== つかいかたタブ（できるだけ狭く） ===== */
+#mainTabs .nav-link.nav-link--howto {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 6px 10px;              /* 既存タブより少し狭め */
+  min-height: 50px;               /* タップ領域は維持 */
+  line-height: 1;
+}
+@media (max-width: 768px){
+  #mainTabs .nav-link.nav-link--howto {
+    padding: 4px 6px;             /* スマホはさらに詰める */
+    min-height: 44px;
+  }
+}
+
+/* スマホの等分レイアウト時でも「つかいかた」「ハンバーガー」は最小幅に */
+@media (max-width: 576px){
+  #mainTabs .nav-item.nav-item--howto,
+  #mainTabs .nav-item.nav-item--more {
+    flex: 0 0 auto;
+  }
+  #mainTabs .nav-item.nav-item--howto .nav-link,
+  #mainTabs .nav-item.nav-item--more .nav-link {
+    width: auto;
+  }
+}
+
+.howto-backdrop{
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.35);
+  opacity: 0; transition: opacity .2s ease;
+  z-index: 2147483646; /* ハンバーガー直下 */
+}
+.howto-backdrop.show{ opacity: 1; }
+
+.howto-sheet{
+  position: fixed; left: 0; right: 0; bottom: 0;
+  background: #fff; border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 24px rgba(0,0,0,.15);
+  transform: translate3d(0, 100%, 0);
+  transition: transform .25s ease-out;
+  max-height: 80vh; overflow: auto;
+  z-index: 2147483647;
+}
+.howto-sheet.show{ transform: translate3d(0, 0, 0); }
+
+.howto-sheet__header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 10px 14px; border-bottom: 1px solid rgba(0,0,0,.08);
+}
+.howto-sheet__title{ font-weight:700; }
+.howto-sheet__close{
+  appearance:none; border:0; background:transparent;
+  font-size: 20px; line-height:1; padding: 4px 8px; cursor: pointer;
+}
+.howto-sheet__body{ padding: 12px 14px 16px; }
+.howto-sec--title{ font-weight: 700; font-size: calc(1rem + 2pt); margin: 8px 0 6px; }
+.howto-list{ margin: 0 0 10px 1em; padding: 0; }
+.howto-list li{ margin: 0.25em 0; list-style: none; }
+
+/* HowTo のリストを“本当の箇条書き”にする */
+#howtoSheet .howto-list { 
+  list-style: disc;      /* 箇条書きの点を表示 */
+  list-style-position: outside; /* 2行目以降はテキスト頭にそろう */
+  margin: 0 0 12px 1.25em;
+  padding: 0;
+}
+#howtoSheet .howto-list li {
+  list-style: inherit !important; /* 以前の list-style:none を強制上書き */
+  margin: .25rem 0;
 }
