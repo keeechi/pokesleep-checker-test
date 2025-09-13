@@ -177,6 +177,20 @@ function styleRankMiniSummary() {
   });
 }
 
+// 種（形態）ごとの「コンプリート済」判定
+// ルール：CHECKABLE_STARS(☆1〜☆4)のうち、そのポケモンに存在する星がすべてチェック済みなら true
+function isEntryComplete(state, ent) {
+  const key = entKey(ent);
+  let hasAny = false;
+  for (const star of CHECKABLE_STARS) {
+    if (!speciesHasStar(ent, star)) continue; // その星が存在しない
+    hasAny = true;
+    if (!getChecked(state, key, star)) return false; // 未チェックが1つでもあれば未コンプ
+  }
+  // 対象星が1つも無い場合は「取得対象なし＝コンプ扱い」とする
+  return true;
+}
+
 // ==== 固定（sticky）ユーティリティ ====
 
 // タブ高をCSS変数へ
@@ -809,11 +823,24 @@ function renderAllFaces(state) {
   const filterStyle = document.getElementById('filterStyle').value;
   const sortBy = document.getElementById('sortBy').value;
 
+  // ▼ 追加：取得状況プルダウン
+  const filterGetStatus = (document.getElementById('allfacesGetStatus')?.value || 'すべて');
+
   const normQuery = normalizeJP(searchName);
 
   let entries = Array.from(SPECIES_MAP.values());
   if (normQuery) entries = entries.filter(ent => normalizeJP(ent.name).includes(normQuery));
   if (filterStyle) entries = entries.filter(ent => ent.rows.some(r => r.Style === filterStyle));
+
+  // ▼ 追加：取得状況フィルター適用
+  if (filterGetStatus !== 'すべて') {
+    entries = entries.filter(ent => {
+      const completed = isEntryComplete(state, ent);
+      if (filterGetStatus === 'コンプリート済') return completed;
+      if (filterGetStatus === '未取得あり')   return !completed;
+      return true;
+    });
+  }
 
   entries.sort((a,b)=>{
     if (sortBy === 'name-asc')  return a.name.localeCompare(b.name, 'ja');
@@ -876,6 +903,10 @@ function renderAllFaces(state) {
       syncOtherViews(key, star, e.target.checked);  // ← 他シートへ差分同期
       renderSummary(state);
       renderRankSearch(state);
+      // ▼ 追加：取得状況フィルター中なら全体を再描画して行の見え方を更新
+      if ((document.getElementById('allfacesGetStatus')?.value || 'すべて') !== 'すべて') {
+        renderAllFaces(loadState());
+      }
     });
   });
 
@@ -1660,6 +1691,7 @@ async function main() {
   document.getElementById('searchName').addEventListener('input', ()=>renderAllFaces(loadState()));
   document.getElementById('filterStyle').addEventListener('change', ()=>renderAllFaces(loadState()));
   document.getElementById('sortBy').addEventListener('change', ()=>renderAllFaces(loadState()));
+  document.getElementById('allfacesGetStatus')?.addEventListener('change', ()=>renderAllFaces(loadState()));
 
   // ▼ 一括ON/OFF（元のまま）
   document.getElementById('btnAllOn').addEventListener('click', ()=>{
