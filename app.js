@@ -1879,84 +1879,86 @@ function afterRenderRankSearch() {
   });
 })();
 
-// ======================================================
-// PWA: サービスワーカー登録 + ホーム追加バナー制御（最小実装）
-// index.html と同じ階層に sw.js / manifest.json を置く前提
-// ======================================================
-(function () {
-  'use strict';
+// ==== PWA Install Banner (deferred prompt) ====
 
-  // ---- 1) サービスワーカー登録（ページロード時1回） ----
-  if ('serviceWorker' in navigator) {
-    // 多重登録を避けるため try/catch&無音
-    window.addEventListener('load', function () {
-      navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(()=>{});
-    });
+// バナー要素
+const pwaBanner     = document.getElementById('pwaBanner');
+const pwaInstallBtn = document.getElementById('pwaInstallBtn');
+const pwaCloseBtn   = document.getElementById('pwaCloseBtn');
+const pwaIosHint    = document.getElementById('pwaIosHint');
+
+let _deferredInstallEvt = null;
+const _LS_HIDE_KEY = 'pwa-banner-hidden';
+
+// 簡易UA判定（iOS Safari は beforeinstallprompt が来ない）
+const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isInStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+// バナー表示/非表示
+function showPwaBanner(){
+  if (!pwaBanner) return;
+  if (localStorage.getItem(_LS_HIDE_KEY) === '1') return; // ユーザーが閉じたら出さない
+
+  // iOS は「ホーム画面に追加」の案内だけ出す
+  if (isIos && !isInStandalone) {
+    pwaIosHint?.classList.remove('d-none');
+    pwaInstallBtn?.classList.add('d-none'); // iOSではボタン非表示（prompt不可）
+    pwaBanner.classList.remove('d-none');
+    return;
   }
 
-  // ---- 2) バナーUIの参照を取る ----
-  const $banner   = document.getElementById('pwaBanner');
-  const $btnInstall = document.getElementById('pwaInstallBtn');
-  const $btnClose   = document.getElementById('pwaCloseBtn');
-  const $iosHint    = document.getElementById('pwaIosHint');
-  if (!$banner || !$btnInstall || !$btnClose) return; // DOMが無ければ何もしない
-
-  // ---- 3) 判定ユーティリティ ----
-  const LS_KEY_DISMISS = 'pwa-banner-dismissed';
-  const ua = navigator.userAgent || '';
-  const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-                    || (window.navigator.standalone === true); // iOS Safari
-
-  // すでにホームから起動済み or バナーを閉じていたら出さない
-  if (isStandalone || localStorage.getItem(LS_KEY_DISMISS) === '1') return;
-
-  // ---- 4) バナー表示/非表示ヘルパ ----
-  const show = () => $banner.classList.remove('d-none');
-  const hide = () => $banner.classList.add('d-none');
-
-  // ---- 5) Android/Chromium: beforeinstallprompt を保持してネイティブprompt() ----
-  let deferredPrompt = null;
-
-  window.addEventListener('beforeinstallprompt', (e) => {
-    // ブラウザ既定のバナーを抑止し、ユーザー操作で prompt を出せるよう保持
-    e.preventDefault();
-    deferredPrompt = e;
-
-    // iOS 以外なら「ホームに追加」ボタンを出す
-    $btnInstall.classList.remove('d-none');
-    $iosHint?.classList.add('d-none');
-    show();
-  });
-
-  // ---- 6) iOS Safari: beforeinstallprompt が来ない → 手順ガイドを出す ----
-  // iOSユーザーには常にガイドを出す（インストール済みでない前提で）
-  if (isIOS && !isStandalone) {
-    $btnInstall.classList.add('d-none');  // iOS ではネイティブ prompt 不可
-    $iosHint?.classList.remove('d-none');
-    show();
+  // Android/デスクトップ… beforeinstallprompt を受け取っている時のみ出す
+  if (_deferredInstallEvt && !isInStandalone) {
+    pwaIosHint?.classList.add('d-none');
+    pwaInstallBtn?.classList.remove('d-none');
+    pwaBanner.classList.remove('d-none');
   }
+}
+function hidePwaBanner(){
+  pwaBanner?.classList.add('d-none');
+}
 
-  // ---- 7) インストール完了を検知したらバナーを閉じる ----
-  window.addEventListener('appinstalled', () => {
-    localStorage.setItem(LS_KEY_DISMISS, '1'); // 次回以降は出さない（好み）
-    hide();
-    deferredPrompt = null;
-  });
+// beforeinstallprompt: 標準バナーを止め、自前で制御
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();                 // ← この時点で標準バナーは出ない
+  _deferredInstallEvt = e;            // ← 後でボタンから呼ぶため保持
+  showPwaBanner();                    // 自前バナーを表示
+});
 
-  // ---- 8) ボタン：インストール実行／閉じる ----
-  $btnInstall.addEventListener('click', async () => {
-    if (!deferredPrompt) return; // iOSなどはボタン自体を非表示にしているはず
-    deferredPrompt.prompt();
-    try { await deferredPrompt.userChoice; } catch {}
-    hide();
-    deferredPrompt = null;
-  });
+// ボタン押下で prompt() を1回だけ呼ぶ（ユーザー操作必須）
+pwaInstallBtn?.addEventListener('click', async () => {
+  if (!_deferredInstallEvt) return;
+  pwaInstallBtn.disabled = true;
+  try {
+    _deferredInstallEvt.prompt();                         // ← ここが無いと今回の警告が出ます
+    const choice = await _deferredInstallEvt.userChoice;  // accepted / dismissed
+    // console.log('A2HS result:', choice.outcome);
+  } finally {
+    // promptは1回しか使えない → 解放しておく
+    _deferredInstallEvt = null;
+    pwaInstallBtn.disabled = false;
+    hidePwaBanner();
+  }
+});
 
-  $btnClose.addEventListener('click', () => {
-    localStorage.setItem(LS_KEY_DISMISS, '1'); // 明示的に閉じたら記憶
-    hide();
-  });
-})();
+pwaCloseBtn?.addEventListener('click', () => {
+  localStorage.setItem(_LS_HIDE_KEY, '1'); // 次回以降出さない
+  hidePwaBanner();
+});
 
-navigator.serviceWorker?.register('./sw.js');
+// インストール完了時はバナーを閉じる
+window.addEventListener('appinstalled', () => {
+  localStorage.setItem(_LS_HIDE_KEY, '1');
+  hidePwaBanner();
+});
+
+// 初期表示タイミング（iOS用に、ページロード時にも評価）
+document.addEventListener('DOMContentLoaded', () => {
+  if (isIos && !isInStandalone) showPwaBanner();
+});
+
+// DOMContentLoaded 内などで一度だけ
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js', { scope: './' })
+    .catch(console.error);
+}
