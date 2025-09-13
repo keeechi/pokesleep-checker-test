@@ -1958,3 +1958,5 @@ function afterRenderRankSearch() {
     hide();
   });
 })();
+
+navigator.serviceWorker?.register('./sw.js');
