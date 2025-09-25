@@ -744,6 +744,10 @@ body.is-howto-open { overflow: hidden; }
 #amberPopup .mini-grid thead th{
   position: sticky; top: 0; background: #fff; z-index: 1;
 }
+#amberPopup .mini-grid thead th{
+  position: sticky; top: 0; background: #fff; z-index: 1;
+  white-space: nowrap;          /* 一律で折り返さない（H列は <br> を入れて対処） */
+}
 
 /* 行ラベルの◓色（既存splitStageの色に合わせる） */
 .rank-chip--rowlabel{
