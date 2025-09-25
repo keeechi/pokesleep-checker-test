@@ -749,6 +749,26 @@ body.is-howto-open { overflow: hidden; }
   white-space: nowrap;          /* 一律で折り返さない（H列は <br> を入れて対処） */
 }
 
+/* ▼ Amberミニ表（スマホ対応：A列固定、B～H均等） */
+#amberPopup .mini-grid table {
+  table-layout: fixed;   /* 均等割り当て */
+  width: 100%;
+}
+
+#amberPopup .mini-grid thead th:first-child,
+#amberPopup .mini-grid tbody th:first-child {
+  width: 64px;           /* A列固定幅（11~20に合わせたサイズ） */
+  min-width: 64px;
+  max-width: 64px;
+  white-space: nowrap;   /* 折り返し禁止 */
+}
+
+#amberPopup .mini-grid thead th:not(:first-child),
+#amberPopup .mini-grid tbody td {
+  text-align: center;
+  vertical-align: middle;
+}
+
 /* 行ラベルの◓色（既存splitStageの色に合わせる） */
 .rank-chip--rowlabel{
   display:inline-flex; align-items:baseline; gap:4px; font-weight:700;
