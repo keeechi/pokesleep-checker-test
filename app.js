@@ -210,7 +210,7 @@ function ensureAmberCTA(){
   box.id = 'amberCtaContainer';
   box.innerHTML = `
     <a id="amberCtaLink" class="link-primary" href="#">
-      11/6(木)よりアンバー渓谷が開放！寝顔の取得数をチェックする
+      11/6(木)よりアンバー渓谷が開放！<br>寝顔の取得数をチェックする
     </a>
   `;
   summary.insertAdjacentElement('afterend', box);
@@ -234,26 +234,31 @@ function countObtainedFaces(state){
 
 // Amber用ミニ表データ：行レンジ定義
 const _AMBER_ROWS = [
-  { labelStage:'ノーマル', label:'◓1~5',    from:1,  to:5   },
-  { labelStage:'スーパー', label:'◓1~5',    from:6,  to:10  },
-  { labelStage:'ハイパー', label:'◓1~5',    from:11, to:15  },
-  { labelStage:'マスター', label:'◓1~10',   from:16, to:25  },
-  { labelStage:'マスター', label:'◓11~20',  from:26, to:35  },
+  { labelStage:'ノーマル', label:'1~5',    from:1,  to:5   },
+  { labelStage:'スーパー', label:'1~5',    from:6,  to:10  },
+  { labelStage:'ハイパー', label:'1~5',    from:11, to:15  },
+  { labelStage:'マスター', label:'1~10',   from:16, to:25  },
+  { labelStage:'マスター', label:'11~20',  from:26, to:35  },
 ];
 
 // Amber用ミニ表のHTMLを構築（各フィールドの“未取得数”を集計）
+// Amber用ミニ表のHTMLを構築（各フィールドの“未取得数”を集計）
 function buildAmberMiniTable(state){
-  // テーブルヘッダ
+  // 見出しを1文字（最後だけ改行入り）に
+  const AMBER_COL_ABBR = ['島', '浜', '洞', '雪', '湖', '電', '島<br>EX'];
+
+  // テーブルヘッダ（A1は空欄にする）
   const thead = `
     <thead class="table-light">
       <tr>
-        <th style="min-width:88px;">Blank</th>
-        ${FIELD_KEYS.map(f => `<th class="text-center">${FIELD_SHORT[f] || f}</th>`).join('')}
+        <th style="min-width:88px;"></th>
+        ${AMBER_COL_ABBR.map(t => `<th class="text-center">${t}</th>`).join('')}
       </tr>
     </thead>`;
 
-  // 各レンジ行の生成
+  // 各レンジ行
   const bodyRows = _AMBER_ROWS.map(rg => {
+    // 行ラベル（◓は1個だけ。ラベル文字列は数値レンジのみ）
     const rowLabel = `
       <span class="rank-chip--rowlabel" data-stage="${rg.labelStage}">
         <span class="ball">◓</span><span>${rg.label}</span>
@@ -266,8 +271,7 @@ function buildAmberMiniTable(state){
         if (!CHECKABLE_STARS.includes(star)) continue;
         const rn = getFieldRankNum(row, field);
         if (!rn || rn < rg.from || rn > rg.to) continue;
-        const checked = getChecked(state, rowKey(row), star);
-        if (!checked) notObtained++;
+        if (!getChecked(state, rowKey(row), star)) notObtained++;
       }
       return `<td class="text-center fw-semibold">${notObtained}</td>`;
     }).join('');
