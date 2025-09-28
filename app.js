@@ -719,6 +719,28 @@ function getFieldRankNum(row, fieldKey) {
 }
 function speciesHasStar(entry, star) { return entry.rows.some(r => r.DisplayRarity === star); }
 
+// 1つの行（=寝顔1件）について、出現フィールド数を数える
+function countAppearingFieldsForRow(row){
+  let c = 0;
+  for (const f of FIELD_KEYS){
+    if (getFieldRankNum(row, f)) c++;
+  }
+  return c;
+}
+function isRowLimited(row){ return countAppearingFieldsForRow(row) === 1; }
+
+// 種（形態）＋☆ごとに、全フィールド横断で出現フィールド数を数える
+function isEntStarLimited(ent, star){
+  const fields = new Set();
+  for (const r of ent.rows){
+    if (r.DisplayRarity !== star) continue;
+    for (const f of FIELD_KEYS){
+      if (getFieldRankNum(r, f)) fields.add(f);
+    }
+  }
+  return fields.size === 1;
+}
+
 // ===================== アイコン生成関連 =====================
 function getIconKeyFromNo(no) {
   if (no == null) return null;
@@ -777,6 +799,16 @@ function renderPokemonIconById(iconId, sizePx = ICON_SIZE) {
     <rect x="0" y="0" width="${sizePx}" height="${sizePx}" fill="#eee" stroke="#bbb"/>
     <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-size="10" fill="#666">${iconId ?? '----'}</text>
   </svg>`;
+}
+
+// 限定バッジ画像
+const LIMITED_BADGE_16 = 'pokesleep-checker-test/assets/icons/table_icons/limited-badge-16.png';
+const LIMITED_BADGE_20 = 'pokesleep-checker-test/assets/icons/table_icons/limited-badge-20.png';
+function getLimitedBadgeSrc(){
+  // スマホ/PCで画像サイズを切替（ブレークポイントは他と合わせて 769px）
+  return (window.matchMedia && window.matchMedia('(min-width: 769px)').matches)
+    ? LIMITED_BADGE_20
+    : LIMITED_BADGE_16;
 }
 
 // ===================== サマリー =====================
@@ -1003,17 +1035,21 @@ function renderAllFaces(state) {
     const key = entKey(ent);               // ★ 形態ごとのキー
     const no = ent.no, name = ent.name;
 
-    const cells = CHECKABLE_STARS.map(star => {
-      const exists = speciesHasStar(ent, star);
-      if (!exists) return `<td class="text-center cell-absent">—</td>`;
-      const checked = getChecked(state, key, star); // ★ key で判定
-      return `
-        <td class="text-center ${checked ? 'cell-checked' : ''}">
-          <input type="checkbox" class="form-check-input"
-            data-key="${key}" data-star="${star}"
-            ${checked ? 'checked' : ''}>
-        </td>`;
-    }).join('');
+const cells = CHECKABLE_STARS.map(star => {
+  const exists = speciesHasStar(ent, star);
+  if (!exists) return `<td class="text-center cell-absent">—</td>`;
+
+  const checked = getChecked(state, key, star);
+  const limited = isEntStarLimited(ent, star);
+
+  return `
+    <td class="text-center ${checked ? 'cell-checked' : ''} ${limited ? 'badge-host' : ''}">
+      <input type="checkbox" class="form-check-input"
+        data-key="${key}" data-star="${star}"
+        ${checked ? 'checked' : ''}>
+      ${ limited ? `<img class="limited-badge" src="${getLimitedBadgeSrc()}" alt="" aria-hidden="true">` : '' }
+    </td>`;
+}).join('');
 
     const bulkBtn = `
       <div class="btn-group-vertical btn-group-sm bulk-group-vert" role="group" aria-label="行まとめ">
@@ -1163,19 +1199,22 @@ function renderFieldTables(state) {
 
       const key = entKey(ent); // ★ 形態ごとのキー
 
-      const cells = CHECKABLE_STARS.map(star=>{
-        const hasRow = ent.rows.find(r => r.DisplayRarity === star);
-        if (!hasRow) return `<td class="text-center cell-absent">—</td>`;
-        const rankNum = getFieldRankNum(hasRow, field);
-        if (!rankNum) return `<td class="text-center cell-disabled">ー</td>`;
+const cells = CHECKABLE_STARS.map(star=>{
+  const hasRow = ent.rows.find(r => r.DisplayRarity === star);
+  if (!hasRow) return `<td class="text-center cell-absent">—</td>`;
+  const rankNum = getFieldRankNum(hasRow, field);
+  if (!rankNum) return `<td class="text-center cell-disabled">ー</td>`;
 
-        const checked = getChecked(state, key, star); // ★ key で判定
-        return `
-          <td class="text-center toggle-cell ${checked ? 'cell-checked' : ''}"
-              data-key="${key}" data-star="${star}">
-            ${renderRankChip(rankNum)}
-          </td>`;
-      }).join('');
+  const checked = getChecked(state, key, star);
+  const limited = isEntStarLimited(ent, star);
+
+  return `
+    <td class="text-center toggle-cell ${checked ? 'cell-checked' : ''} ${limited ? 'badge-host' : ''}"
+        data-key="${key}" data-star="${star}">
+      ${renderRankChip(rankNum)}
+      ${ limited ? `<img class="limited-badge" src="${getLimitedBadgeSrc()}" alt="" aria-hidden="true">` : '' }
+    </td>`;
+}).join('');
 
       rows.push(`
         <tr>
@@ -1483,6 +1522,7 @@ items.sort((a,b) => primary(a,b) || tieBreaker(a,b));
     const checkable = CHECKABLE_STARS.includes(star);
     // 未入手一覧なので通常は false のはずだが、念のため同期
     const isChecked = checkable ? getChecked(state, k, star) : false;
+    const limitedRow = isRowLimited(r);
     
     return `
       <tr>
@@ -1500,7 +1540,10 @@ items.sort((a,b) => primary(a,b) || tieBreaker(a,b));
           </div>
         </td>
         <td class="text-center">${r.Style || '-'}</td>
-        <td class="text-center">${r.DisplayRarity || '-'}</td>
+        <td class="text-center ${limitedRow ? 'badge-host' : ''}">
+          ${r.DisplayRarity || '-'}
+          ${ limitedRow ? `<img class="limited-badge" src="${getLimitedBadgeSrc()}" alt="" aria-hidden="true">` : '' }
+        </td>
         <td class="text-center">${renderRankChip(needRank)}</td>
         <td class="text-center">
         ${ checkable
