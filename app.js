@@ -1329,19 +1329,23 @@ rows.push(`
   tbody.innerHTML = rows.join('');
 
     // ★ セル全体クリックで ON/OFF（data-key を使用）
-    tbody.querySelectorAll('td.toggle-cell').forEach(td=>{
-      td.addEventListener('click', ()=>{
-        const key  = td.dataset.key;
-        const star = td.dataset.star;
-        const now  = getChecked(state, key, star);
-        setChecked(state, key, star, !now);
-        td.classList.toggle('cell-checked', !now);
-        syncOtherViews(key, star, !now);             // ← 他シートへ差分同期
-        renderSummary(state);
-        renderRankSearch(state);
-        updateAmberPopup(state);
-      });
-    });
+tbody.querySelectorAll('td.toggle-cell').forEach(td=>{
+  td.addEventListener('click', ()=>{
+    const key  = td.dataset.key;
+    const star = td.dataset.star;
+    const now  = getChecked(state, key, star);
+    setChecked(state, key, star, !now);
+    td.classList.toggle('cell-checked', !now);
+    syncOtherViews(key, star, !now);
+    renderSummary(state);
+    renderRankSearch(state);
+    updateAmberPopup(state);
+
+    if ((document.getElementById('byfieldGetStatus')?.value || 'すべて') !== 'すべて') {
+      renderFieldTables(loadState());
+    }
+  });
+});
     // ▼ボタン（フィールド別）— モーダルを開く
     tbody.querySelectorAll('button.icon-more').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
