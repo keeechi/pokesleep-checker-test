@@ -671,7 +671,7 @@ function getRowLimitedField(row){
 // フィールドキー → スプライトID名の末尾
 const FIELD_BADGE_SUFFIX = {
   'ワカクサ本島': 'wakakusa',
-  'シアンの砂浜': 'syan',
+  'シアンの砂浜': 'cyan',
   'トープ洞窟': 'taupe',
   'ウノハナ雪原': 'unohana',
   'ラピスラズリ湖畔': 'rapis',
