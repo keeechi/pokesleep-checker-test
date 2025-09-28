@@ -197,63 +197,6 @@ function isEntryComplete(state, ent) {
   return true;
 }
 
-// ---------------- フィールド限定寝顔(= 1マップ出現) 判定 ----------------
-
-// row（1寝顔レコード）について「出現するフィールド数」を数える
-function countFieldsForRow(row){
-  let c = 0;
-  for (const f of FIELD_KEYS){
-    if (getFieldRankNum(row, f)) c++;
-  }
-  return c;
-}
-
-// ent(= 形態ごと) + star(☆1..☆4) で「ユニークな出現フィールド数」を数える
-function countFieldsForEntStar(ent, star){
-  const fields = new Set();
-  for (const r of ent.rows){
-    if (r.DisplayRarity !== star) continue;
-    for (const f of FIELD_KEYS){
-      if (getFieldRankNum(r, f)) fields.add(f);
-    }
-  }
-  return fields.size;
-}
-
-// 「1マップのみか？」（ent+star）
-function isLimitedEntStar(ent, star){
-  if (!CHECKABLE_STARS.includes(star)) return false;
-  return countFieldsForEntStar(ent, star) === 1;
-}
-
-// IconNo から ent を取得（rankSearch 側で使用）
-function findEntryByIconNo(iconNo){
-  for (const ent of SPECIES_MAP.values()){
-    if (String(ent.iconNo || '') === String(iconNo || '')) return ent;
-  }
-  return null;
-}
-
-// バッジ要素（<img>）を生成（SVGは16px版を共通で読み込み、CSSで拡縮）
-function createLimitedBadge(){
-  const img = document.createElement('img');
-  img.className = 'limited-badge';
-  img.alt = 'フィールド限定';
-  img.decoding = 'async';
-  img.loading = 'lazy';
-  img.src = 'pokesleep-checker-test/assets/icons/table_icons/limited-badge-16.svg';
-  return img;
-}
-
-// 指定セルに“限”バッジを付ける（重複防止付き）
-function attachLimitedBadge(td){
-  if (!td) return;
-  td.classList.add('cell-limited');
-  if (!td.querySelector('.limited-badge')){
-    td.appendChild(createLimitedBadge());
-  }
-}
-
 // ===================== Amber 渓谷：特設CTA & ポップアップ =====================
 
 // CTAをサマリー直下・メインタブの直前に挿入
@@ -1056,42 +999,21 @@ function renderAllFaces(state) {
 
   LAST_RENDER_ENTRIES = entries;
 
-tbody.innerHTML = entries.map(ent => {
-  const key = entKey(ent);               // ★ 形態ごとのキー
-  const no = ent.no, name = ent.name;
+  tbody.innerHTML = entries.map(ent => {
+    const key = entKey(ent);               // ★ 形態ごとのキー
+    const no = ent.no, name = ent.name;
 
-  const cells = CHECKABLE_STARS.map(star => {
-    const exists = speciesHasStar(ent, star);
-    if (!exists) return `<td class="text-center cell-absent">—</td>`;
-  
-    const checked = getChecked(state, key, star);
-    const limited = isLimitedEntStar(ent, star);   // ★ 判定
-  
-    // いったん素のセルHTMLを作る
-    const html = `
-      <td class="text-center ${checked ? 'cell-checked' : ''}">
-        <input type="checkbox" class="form-check-input"
-          data-key="${key}" data-star="${star}" ${checked ? 'checked' : ''}>
-      </td>`;
-
-    // 後でDOM化して“限”バッジを差し込むために一旦返す
-      return { html, limited };
-      }).map(cell => (typeof cell === 'string' ? cell : cell.html)).join('');
-
-    // ★ 追加：全寝顔一覧に“限”バッジを差し込む
-  tbody.querySelectorAll('tr').forEach(tr => {
-    const key = tr.querySelector('.icon-more')?.dataset.entkey;
-    if (!key) return;
-    const ent = findEntryByEntKey(key);
-    if (!ent) return;
-  
-    // 各☆セルを走査
-    CHECKABLE_STARS.forEach((star, idx) => {
-      const td = tr.children[1 + idx]; // [0]=ポケモン、[1]=☆1...
-      if (!td || td.classList.contains('cell-absent')) return;
-      if (isLimitedEntStar(ent, star)) attachLimitedBadge(td);
-    });
-  });
+    const cells = CHECKABLE_STARS.map(star => {
+      const exists = speciesHasStar(ent, star);
+      if (!exists) return `<td class="text-center cell-absent">—</td>`;
+      const checked = getChecked(state, key, star); // ★ key で判定
+      return `
+        <td class="text-center ${checked ? 'cell-checked' : ''}">
+          <input type="checkbox" class="form-check-input"
+            data-key="${key}" data-star="${star}"
+            ${checked ? 'checked' : ''}>
+        </td>`;
+    }).join('');
 
     const bulkBtn = `
       <div class="btn-group-vertical btn-group-sm bulk-group-vert" role="group" aria-label="行まとめ">
@@ -1276,22 +1198,6 @@ function renderFieldTables(state) {
     }
     tbody.innerHTML = rows.join('');
 
-      // ★ 追加：フィールド別の“限”バッジ
-    tbody.querySelectorAll('tr').forEach(tr => {
-      const entKeyAttr = tr.querySelector('button.icon-more')?.dataset.entkey;
-      if (!entKeyAttr) return;
-      const ent = findEntryByEntKey(entKeyAttr);
-      if (!ent) return;
-    
-      // ☆1〜☆4のセル（rankが無い・無効のセルには付けない）
-      const tds = Array.from(tr.querySelectorAll('td.toggle-cell'));
-      CHECKABLE_STARS.forEach((star, i) => {
-        const td = tds[i];
-        if (!td || td.classList.contains('cell-absent') || td.classList.contains('cell-disabled')) return;
-        if (isLimitedEntStar(ent, star)) attachLimitedBadge(td);
-      });
-    });
-    
     // ★ セル全体クリックで ON/OFF（data-key を使用）
     tbody.querySelectorAll('td.toggle-cell').forEach(td=>{
       td.addEventListener('click', ()=>{
@@ -1649,35 +1555,6 @@ tbody.querySelectorAll('input.mark-obtained').forEach(chk=>{
   markPokemonNameSpans();
   afterRenderRankSearch();
 }
-
-    // 逆引き（出現ランク列）に“限”バッジ
-    const tbody = document.querySelector('#rankSearchTable tbody');
-    if (!tbody) return;
-    tbody.querySelectorAll('tr').forEach(tr => {
-      
-      // 列構成: [0]=ポケモン, [1]=睡眠タイプ, [2]=レア度, [3]=出現ランク, [4]=入手済？
-      const nameCell = tr.children[0];
-      const rankCell = tr.children[3];
-      if (!nameCell || !rankCell) return;
-    
-      // アイコンボタンから IconNo を推測（データ属性が rowKey なので ent を拾う）
-      const iconBtn = nameCell.querySelector('button.icon-more');
-      const entKeyAttr = iconBtn?.dataset.entkey;
-      let ent = entKeyAttr ? findEntryByEntKey(entKeyAttr) : null;
-    
-      // 万一拾えない場合は、表示名/No から IconNo の <svg> を探るなどのフォールバックは省略
-    
-      if (!ent) return;
-    
-      // レア度テキストから star を取る（例: "☆3"）
-      const starText = (tr.children[2]?.textContent || '').trim();
-      if (!CHECKABLE_STARS.includes(starText)) return;
-    
-      // ランクが存在しない行には付けない（"—" などを弾く）
-      if (!rankCell.querySelector('.rank-chip')) return;
-    
-      if (isLimitedEntStar(ent, starText)) attachLimitedBadge(rankCell);
-    });
 
 function markPokemonNameSpans() {
   const table = document.querySelector('.table-rank-result'); // 逆引き結果テーブル
