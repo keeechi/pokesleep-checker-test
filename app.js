@@ -242,7 +242,7 @@ const _AMBER_ROWS = [
 ];
 
 // Amber用ミニ表のHTMLを構築（各フィールドの“未取得数”を集計）
-// Amber用ミニ表のHTMLを構築（各フィールドの“未取得数”を集計）
+// Amber用ミニ表のHTMLを構築（各フィールドの“未取得数”＋“限定かつ未取得”を集計）
 function buildAmberMiniTable(state){
   // 見出しを1文字（最後だけ改行入り）に
   const AMBER_COL_ABBR = ['島', '浜', '洞', '雪', '湖', '電', '島<br>EX'];
@@ -266,20 +266,44 @@ function buildAmberMiniTable(state){
 
     const tds = FIELD_KEYS.map(field => {
       let notObtained = 0;
+      let limitedNotObtained = 0;
+
       for (const row of RAW_ROWS){
         const star = row.DisplayRarity;
         if (!CHECKABLE_STARS.includes(star)) continue;
+
         const rn = getFieldRankNum(row, field);
         if (!rn || rn < rg.from || rn > rg.to) continue;
-        if (!getChecked(state, rowKey(row), star)) notObtained++;
+
+        const unchecked = !getChecked(state, rowKey(row), star);
+        if (!unchecked) continue;
+
+        // 上段：通常の未取得カウント
+        notObtained++;
+
+        // 下段：その寝顔（行）が“このフィールド限定”なら加算
+        const limitedField = getRowLimitedField(row); // 既存ユーティリティ
+        if (limitedField === field) limitedNotObtained++;
       }
-      return `<td class="text-center fw-semibold">${notObtained}</td>`;
+
+      // セルは上下2段表示：上=未取得合計、下=(限定かつ未取得)
+      return `
+        <td class="text-center fw-semibold amber-cell">
+          <div class="cell-top">${notObtained}</div>
+          <div class="cell-bottom amber-limited-count">(${limitedNotObtained})</div>
+        </td>`;
     }).join('');
 
     return `<tr><th class="text-start">${rowLabel}</th>${tds}</tr>`;
   }).join('');
 
   return `
+    <div class="amber-mini-head">
+      <div class="amber-table-title">未取得の寝顔の数</div>
+      <div class="amber-note text-muted">
+        <span class="note-red">（(数字)）</span>はそのフィールドでしか出現しない未取得の寝顔の数です。
+      </div>
+    </div>
     <div class="table-responsive mini-grid">
       <table class="table table-sm align-middle">
         ${thead}
