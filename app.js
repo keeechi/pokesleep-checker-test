@@ -10,6 +10,7 @@ const FIELD_KEYS = [
 
 // === Amber渓谷（特設ポップアップ） ===
 const AMBER_GOAL = 450; // 目標寝顔数
+const AMBER_HIDE_ZERO = true; // 下段の(0)は非表示にする
 
 const FIELD_SHORT = {
   'ワカクサ本島': 'ワカクサ',
@@ -286,13 +287,15 @@ function buildAmberMiniTable(state){
         if (limitedField === field) limitedNotObtained++;
       }
 
-      // セルは上下2段表示：上=未取得合計、下=(限定かつ未取得)
-      return `
-        <td class="text-center fw-semibold amber-cell">
-          <div class="cell-top">${notObtained}</div>
-          <div class="cell-bottom amber-limited-count">(${limitedNotObtained})</div>
-        </td>`;
-    }).join('');
+        const bottomHtml = (limitedNotObtained > 0 || !AMBER_HIDE_ZERO)
+          ? `<div class="cell-bottom amber-limited-count">(${limitedNotObtained})</div>`
+          : '';
+        
+        return `
+          <td class="text-center fw-semibold amber-cell">
+            <div class="cell-top">${notObtained}</div>
+            ${bottomHtml}
+          </td>`;
 
     return `<tr><th class="text-start">${rowLabel}</th>${tds}</tr>`;
   }).join('');
@@ -1989,18 +1992,14 @@ style.textContent = `
     margin-bottom: .1rem;
   }
   .amber-note { font-size: 0.92rem; }
-  .amber-note .note-red { color: #d00; font-weight: 600; }
-  
+  /* text-muted の !important を打ち消すため、こちらも !important を付与 */
+  .amber-note .note-red { color: #d00 !important; font-weight: 600; }
+
   .mini-grid td.amber-cell { line-height: 1.05; }
   .mini-grid td.amber-cell .cell-top { font-size: 1rem; }
-  .mini-grid td.amber-cell .cell-bottom {
-    font-size: 0.85rem;
-    margin-top: 2px;
-  }
-  .amber-limited-count { color: #d00; } /* 下段 (n) を赤に */
-  
-  /* 下段 (n) を小さめ＆赤に（上段より小さく） */
-.amber-limited-count { color: #d00; font-size: 0.85rem; }
+  .mini-grid td.amber-cell .cell-bottom { font-size: 0.85rem; margin-top: 2px; }
+  /* 下段 (n) を小さめ＆赤に（特異性を少し上げ、色は確実に赤へ） */
+  .mini-grid td.amber-cell .amber-limited-count { color: #d00 !important; font-size: 0.85rem; }
 
 `;
   document.head.appendChild(style);
