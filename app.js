@@ -1100,49 +1100,56 @@ function renderAllFaces(state) {
 
   LAST_RENDER_ENTRIES = entries;
 
-  tbody.innerHTML = entries.map(ent => {
-    const key = entKey(ent);               // ★ 形態ごとのキー
-    const no = ent.no, name = ent.name;
+tbody.innerHTML = entries.map(ent => {
+  const key = entKey(ent);
+  const no = ent.no, name = ent.name;
 
-const cells = CHECKABLE_STARS.map(star => {
-  const exists = speciesHasStar(ent, star);
-  if (!exists) return `<td class="text-center cell-absent">—</td>`;
+  // ☆1〜☆4 の各セルだけを作る
+  const cells = CHECKABLE_STARS.map(star => {
+    const exists = speciesHasStar(ent, star);
+    if (!exists) return `<td class="text-center cell-absent">—</td>`;
 
-  const checked = getChecked(state, key, star);
-  const limitedField = getEntStarLimitedField(ent, star);
-  const badge = limitedField ? renderLimitedBadgeByField(limitedField) : '';
-      return `
-        <td class="text-center ${checked ? 'cell-checked' : ''} ${badge ? 'badge-host' : ''}">
-          <input type="checkbox" class="form-check-input"
-            data-key="${key}" data-star="${star}"
-            ${checked ? 'checked' : ''}>
-          ${badge}
-        </td>`;
-    const bulkBtn = `
-      <div class="btn-group-vertical btn-group-sm bulk-group-vert" role="group" aria-label="行まとめ">
-        <button type="button" class="btn btn-outline-primary" data-bulk="on"  data-key="${key}">一括ON</button>
-        <button type="button" class="btn btn-outline-secondary" data-bulk="off" data-key="${key}">一括OFF</button>
-      </div>`;
+    const checked = getChecked(state, key, star);
+    const limitedField = getEntStarLimitedField(ent, star);
+    const badge = limitedField ? renderLimitedBadgeByField(limitedField) : '';
 
     return `
-      <tr>
-        <td class="name-cell text-center align-middle">
-          <div style="width:${ICON_SIZE + 16}px; margin: 0 auto;">
-            <div class="poke-icon mx-auto position-relative" style="width:${ICON_SIZE}px;height:${ICON_SIZE}px;line-height:0;">
-              ${renderPokemonIconById(ent.iconNo || getIconKeyFromNo(no), ICON_SIZE)}
-              <button type="button" class="btn btn-light btn-xxs icon-more"
-                  data-entkey="${key}" aria-label="出現フィールド">▼</button>
-            </div>
-              <div class="pf-text mt-1" style="line-height:1.2; word-break:break-word; white-space:normal;">
-                <div class="pf-no text-muted">${no}</div>
-                <div class="pf-name fw-semibold" style="max-width:${ICON_SIZE + 8}px; margin:0 auto;">${escapeHtml(name)}</div>
-              </div>
-          </div>
-        </td>
-        ${cells}
-        <td class="text-center td-bulk">${bulkBtn}</td>
-      </tr>`;
+      <td class="text-center ${checked ? 'cell-checked' : ''} ${badge ? 'badge-host' : ''}">
+        <input type="checkbox" class="form-check-input"
+               data-key="${key}" data-star="${star}"
+               ${checked ? 'checked' : ''}>
+        ${badge}
+      </td>`;
   }).join('');
+
+  // 行まとめボタン
+  const bulkBtn = `
+    <div class="btn-group-vertical btn-group-sm bulk-group-vert" role="group" aria-label="行まとめ">
+      <button type="button" class="btn btn-outline-primary" data-bulk="on"  data-key="${key}">一括ON</button>
+      <button type="button" class="btn btn-outline-secondary" data-bulk="off" data-key="${key}">一括OFF</button>
+    </div>`;
+
+  // 行全体を返す（★ ここは map の外）
+  return `
+    <tr>
+      <td class="name-cell text-center align-middle">
+        <div style="width:${ICON_SIZE + 16}px; margin: 0 auto;">
+          <div class="poke-icon mx-auto position-relative" style="width:${ICON_SIZE}px;height:${ICON_SIZE}px;line-height:0;">
+            ${renderPokemonIconById(ent.iconNo || getIconKeyFromNo(no), ICON_SIZE)}
+            <button type="button" class="btn btn-light btn-xxs icon-more"
+                    data-entkey="${key}" aria-label="出現フィールド">▼</button>
+          </div>
+          <div class="pf-text mt-1" style="line-height:1.2; word-break:break-word; white-space:normal;">
+            <div class="pf-no text-muted">${no}</div>
+            <div class="pf-name fw-semibold" style="max-width:${ICON_SIZE + 8}px; margin:0 auto;">${escapeHtml(name)}</div>
+          </div>
+        </div>
+      </td>
+      ${cells}
+      <td class="text-center td-bulk">${bulkBtn}</td>
+    </tr>`;
+}).join('');
+
 
   // チェック（★ data-key を使う）
   tbody.querySelectorAll('input[type="checkbox"]').forEach(chk => {
@@ -1275,31 +1282,36 @@ const cells = CHECKABLE_STARS.map(star=>{
   const checked = getChecked(state, key, star);
   const limitedField = getEntStarLimitedField(ent, star);
   const badge = limitedField ? renderLimitedBadgeByField(limitedField) : '';
-      return `
-        <td class="text-center toggle-cell ${checked ? 'cell-checked' : ''} ${badge ? 'badge-host' : ''}"
-            data-key="${key}" data-star="${star}">
-          ${renderRankChip(rankNum)}
-          ${badge}
-        </td>`;
-  rows.push(`
-    <tr>
-      <td class="byfield-name-cell text-center align-middle">
-        <div class="pf-wrap">
-          <div class="byfield-icon position-relative">
-            ${renderPokemonIconById(ent.iconNo || getIconKeyFromNo(ent.no), ICON_SIZE_FIELD)}
-            <button type="button" class="btn btn-light btn-xxs icon-more"
-                    data-entkey="${key}" aria-label="出現フィールド">▼</button>
-          </div>
-          <div class="pf-text">
-            <div class="pf-no text-muted">${ent.no}</div>
-            <div class="pf-name">${escapeHtml(ent.name)}</div>
-          </div>
+
+  return `
+    <td class="text-center toggle-cell ${checked ? 'cell-checked' : ''} ${badge ? 'badge-host' : ''}"
+        data-key="${key}" data-star="${star}">
+      ${renderRankChip(rankNum)}
+      ${badge}
+    </td>`;
+}).join('');
+
+// ★ 行はここで push（map の外）
+rows.push(`
+  <tr>
+    <td class="byfield-name-cell text-center align-middle">
+      <div class="pf-wrap">
+        <div class="byfield-icon position-relative">
+          ${renderPokemonIconById(ent.iconNo || getIconKeyFromNo(ent.no), ICON_SIZE_FIELD)}
+          <button type="button" class="btn btn-light btn-xxs icon-more"
+                  data-entkey="${key}" aria-label="出現フィールド">▼</button>
         </div>
-      </td>
-      <td class="type-cell text-center">${firstStyleKey(ent) || '-'}</td>
-      ${cells}
-    </tr>`);
-    }
+        <div class="pf-text">
+          <div class="pf-no text-muted">${ent.no}</div>
+          <div class="pf-name">${escapeHtml(ent.name)}</div>
+        </div>
+      </div>
+    </td>
+    <td class="type-cell text-center">${firstStyleKey(ent) || '-'}</td>
+    ${cells}
+  </tr>`);
+  }
+    
   tbody.innerHTML = rows.join('');
 
     // ★ セル全体クリックで ON/OFF（data-key を使用）
@@ -1517,8 +1529,6 @@ function renderRankSearch(state) {
   const star = row.DisplayRarity;
   const checkable = CHECKABLE_STARS.includes(star);
   const isChecked = checkable ? getChecked(state, k, star) : false;
-  const limitedField = getRowLimitedField(r);
-  const badge = limitedField ? renderLimitedBadgeByField(limitedField) : '';
 
   // 入手状況フィルター
   if (statusFilter === '未入手') {
@@ -1580,18 +1590,20 @@ items.sort((a,b) => primary(a,b) || tieBreaker(a,b));
   return;
 }
 
-  tbody.innerHTML = items.map(r=>{
-    const needRank = getFieldRankNum(r, field);
-    const iconSvg = renderPokemonIconById(r.IconNo || getIconKeyFromNo(r.No), ICON_SIZE_FIELD);
-
-    const k = rowKey(r);
-    const star = r.DisplayRarity;
-    const checkable = CHECKABLE_STARS.includes(star);
-    // 未入手一覧なので通常は false のはずだが、念のため同期
-    const isChecked = checkable ? getChecked(state, k, star) : false;
-    const limitedRow = isRowLimited(r);
+    tbody.innerHTML = items.map(r=>{
+      const needRank = getFieldRankNum(r, field);
+      const iconSvg = renderPokemonIconById(r.IconNo || getIconKeyFromNo(r.No), ICON_SIZE_FIELD);
     
-    return `
+      const k = rowKey(r);
+      const star = r.DisplayRarity;
+      const checkable = CHECKABLE_STARS.includes(star);
+      const isChecked = checkable ? getChecked(state, k, star) : false;
+    
+      // ★ この場で限定バッジを算出
+      const limitedField = getRowLimitedField(r);
+      const badge = limitedField ? renderLimitedBadgeByField(limitedField) : '';
+
+  return `
       <tr>
         <td class="byfield-name-cell text-center align-middle">
           <div class="pf-wrap">
