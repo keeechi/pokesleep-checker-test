@@ -1238,9 +1238,11 @@ function setupFieldTabs() {
 const _q = document.getElementById('byfieldSearchName');
 const _s = document.getElementById('byfieldFilterStyle');
 const _o = document.getElementById('byfieldSortBy');
-_q && _q.addEventListener('input', ()=>renderFieldTables(loadState()));
-_s && _s.addEventListener('change', ()=>renderFieldTables(loadState()));
-_o && _o.addEventListener('change', ()=>renderFieldTables(loadState()));
+    _q && _q.addEventListener('input', ()=>renderFieldTables(loadState()));
+    _s && _s.addEventListener('change', ()=>renderFieldTables(loadState()));
+    _o && _o.addEventListener('change', ()=>renderFieldTables(loadState()));
+const _g = document.getElementById('byfieldGetStatus');
+    _g && _g.addEventListener('change', ()=>renderFieldTables(loadState()));
 
 function renderFieldTables(state) {
   const qEl = document.getElementById('byfieldSearchName');
@@ -1250,6 +1252,8 @@ function renderFieldTables(state) {
   const searchName = (qEl?.value || '').trim();
   const filterStyle = sEl?.value || '';
   const sortBy = oEl?.value || 'no-asc';
+  const gEl = document.getElementById('byfieldGetStatus');
+  const getStatus = gEl?.value || 'すべて';
 
   const normQuery = normalizeJP(searchName);
 
@@ -1261,8 +1265,16 @@ function renderFieldTables(state) {
     if (sortBy === 'name-asc')  return a.name.localeCompare(b.name, 'ja');
     if (sortBy === 'name-desc') return b.name.localeCompare(a.name, 'ja');
     if (sortBy === 'no-desc')   return b.no.localeCompare(a.no, 'ja');
-    return a.no.localeCompare(b.no, 'ja');
-  });
+        return a.no.localeCompare(b.no, 'ja');
+    if (getStatus !== 'すべて') {
+        baseEntries = baseEntries.filter(ent => {
+          const completed = isEntryComplete(state, ent);
+          if (getStatus === 'コンプリート済') return completed;
+          if (getStatus === '未取得あり')     return !completed;
+          return true;
+        });
+      }
+    });
 
   FIELD_KEYS.forEach(field=>{
     const tbody = document.querySelector(`#fieldTabsContent tbody[data-field="${field}"]`);
