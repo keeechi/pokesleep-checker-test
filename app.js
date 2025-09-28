@@ -1262,19 +1262,21 @@ function renderFieldTables(state) {
   if (filterStyle) baseEntries = baseEntries.filter(ent => ent.rows.some(r => r.Style === filterStyle));
 
   baseEntries.sort((a,b)=>{
-    if (sortBy === 'name-asc')  return a.name.localeCompare(b.name, 'ja');
-    if (sortBy === 'name-desc') return b.name.localeCompare(a.name, 'ja');
-    if (sortBy === 'no-desc')   return b.no.localeCompare(a.no, 'ja');
-        return a.no.localeCompare(b.no, 'ja');
-    if (getStatus !== 'すべて') {
-        baseEntries = baseEntries.filter(ent => {
-          const completed = isEntryComplete(state, ent);
-          if (getStatus === 'コンプリート済') return completed;
-          if (getStatus === '未取得あり')     return !completed;
-          return true;
-        });
-      }
-    });
+  if (sortBy === 'name-asc')  return a.name.localeCompare(b.name, 'ja');
+  if (sortBy === 'name-desc') return b.name.localeCompare(a.name, 'ja');
+  if (sortBy === 'no-desc')   return b.no.localeCompare(a.no, 'ja');
+  return a.no.localeCompare(b.no, 'ja');
+});
+
+// ★ 取得状況フィルターは sort の後に適用
+if (getStatus !== 'すべて') {
+  baseEntries = baseEntries.filter(ent => {
+    const completed = isEntryComplete(state, ent);
+    if (getStatus === 'コンプリート済') return completed;
+    if (getStatus === '未取得あり')     return !completed;
+    return true;
+  });
+}
 
   FIELD_KEYS.forEach(field=>{
     const tbody = document.querySelector(`#fieldTabsContent tbody[data-field="${field}"]`);
