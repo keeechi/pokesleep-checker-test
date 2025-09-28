@@ -781,16 +781,3 @@ body.is-howto-open { overflow: hidden; }
 
 /* スマホ時の表スクロールを確保 */
 #amberPopup .table-responsive{ max-height: 55vh; overflow:auto; }
-
-/* === フィールド限定寝顔バッジ === */
-.cell-limited { position: relative; }
-.cell-limited .limited-badge{
-  position: absolute;
-  top: 2px; right: 2px;
-  width: var(--badge-size, 16px);
-  height: var(--badge-size, 16px);
-  pointer-events: none;
-}
-@media (min-width: 768px){
-  .cell-limited .limited-badge{ --badge-size: 20px; }
-}
