@@ -1,0 +1,8 @@
+field_fill_stroke_text
+
+wakakusa_#98fb98_#fff_#000000
+cyan_#87cefa_#fff_#000000
+taup_#deb887_#fff_#000000
+unohana_#f0f8ff_#fff_#000000
+rapis_#7fffd4_#fff_#000000
+gold_#ffff00_#fff_#000000
