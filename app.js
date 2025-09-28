@@ -802,8 +802,8 @@ function renderPokemonIconById(iconId, sizePx = ICON_SIZE) {
 }
 
 // 限定バッジ画像
-const LIMITED_BADGE_16 = 'pokesleep-checker-test/assets/icons/table_icons/limited-badge-16.png';
-const LIMITED_BADGE_20 = 'pokesleep-checker-test/assets/icons/table_icons/limited-badge-20.png';
+const LIMITED_BADGE_16 = 'assets/icons/table_icons/limited-badge-16.svg';
+const LIMITED_BADGE_20 = 'assets/icons/table_icons/limited-badge-20.svg';
 function getLimitedBadgeSrc(){
   // スマホ/PCで画像サイズを切替（ブレークポイントは他と合わせて 769px）
   return (window.matchMedia && window.matchMedia('(min-width: 769px)').matches)
