@@ -301,7 +301,7 @@ function buildAmberMiniTable(state){
     <div class="amber-mini-head">
       <div class="amber-table-title">未取得の寝顔の数</div>
       <div class="amber-note text-muted">
-        <span class="note-red">（(数字)）</span>はそのフィールドでしか出現しない未取得の寝顔の数です。
+        <span class="note-red">(数字)</span>はそのフィールドでしか出現しない未取得の寝顔の数です。
       </div>
     </div>
     <div class="table-responsive mini-grid">
@@ -1981,23 +1981,26 @@ style.textContent = `
   .filter-item label { margin:0 !important; font-weight:500; }
   .filter-item .form-select { width:auto; display:inline-block; }
 
-/* ==== Amber mini table: limited count on second line ==== */
-.amber-mini-head { margin-bottom: .25rem; }
-.amber-table-title {
-  font-weight: 600;
-  margin-top: .25rem;
-  margin-bottom: .1rem;
-}
-.amber-note { font-size: 0.92rem; }
-.amber-note .note-red { color: #d00; font-weight: 600; }
-
-.mini-grid td.amber-cell { line-height: 1.05; }
-.mini-grid td.amber-cell .cell-top { font-size: 1rem; }
-.mini-grid td.amber-cell .cell-bottom {
-  font-size: 0.85rem;
-  margin-top: 2px;
-}
-.amber-limited-count { color: #d00; } /* 下段 (n) を赤に */
+  /* ==== Amber mini table: limited count on second line ==== */
+  .amber-mini-head { margin-bottom: .25rem; }
+  .amber-table-title {
+    font-weight: 600;
+    margin-top: .25rem;
+    margin-bottom: .1rem;
+  }
+  .amber-note { font-size: 0.92rem; }
+  .amber-note .note-red { color: #d00; font-weight: 600; }
+  
+  .mini-grid td.amber-cell { line-height: 1.05; }
+  .mini-grid td.amber-cell .cell-top { font-size: 1rem; }
+  .mini-grid td.amber-cell .cell-bottom {
+    font-size: 0.85rem;
+    margin-top: 2px;
+  }
+  .amber-limited-count { color: #d00; } /* 下段 (n) を赤に */
+  
+  /* 下段 (n) を小さめ＆赤に（上段より小さく） */
+.amber-limited-count { color: #d00; font-size: 0.85rem; }
 
 `;
   document.head.appendChild(style);
