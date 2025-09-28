@@ -242,7 +242,6 @@ const _AMBER_ROWS = [
   { labelStage:'マスター', label:'11~20',  from:26, to:35  },
 ];
 
-// Amber用ミニ表のHTMLを構築（各フィールドの“未取得数”を集計）
 // Amber用ミニ表のHTMLを構築（各フィールドの“未取得数”＋“限定かつ未取得”を集計）
 function buildAmberMiniTable(state){
   // 見出しを1文字（最後だけ改行入り）に
@@ -265,6 +264,7 @@ function buildAmberMiniTable(state){
         <span class="ball">◓</span><span>${rg.label}</span>
       </span>`;
 
+    // ★ ここを必ず閉じる（}).join('') を忘れない
     const tds = FIELD_KEYS.map(field => {
       let notObtained = 0;
       let limitedNotObtained = 0;
@@ -287,16 +287,18 @@ function buildAmberMiniTable(state){
         if (limitedField === field) limitedNotObtained++;
       }
 
-        const bottomHtml = (limitedNotObtained > 0 || !AMBER_HIDE_ZERO)
-          ? `<div class="cell-bottom amber-limited-count">(${limitedNotObtained})</div>`
-          : '';
-        
-        return `
-          <td class="text-center fw-semibold amber-cell">
-            <div class="cell-top">${notObtained}</div>
-            ${bottomHtml}
-          </td>`;
+      const bottomHtml = (limitedNotObtained > 0 || !AMBER_HIDE_ZERO)
+        ? `<div class="cell-bottom amber-limited-count">(${limitedNotObtained})</div>`
+        : '';
 
+      return `
+        <td class="text-center fw-semibold amber-cell">
+          <div class="cell-top">${notObtained}</div>
+          ${bottomHtml}
+        </td>`;
+    }).join('');
+
+    // ここは _AMBER_ROWS.map(...) の中：1行分の <tr> を返す
     return `<tr><th class="text-start">${rowLabel}</th>${tds}</tr>`;
   }).join('');
 
