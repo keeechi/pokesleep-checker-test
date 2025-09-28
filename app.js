@@ -462,6 +462,34 @@ function updateStickyCloneSizes(table){
   });
 }
 
+// ==== 限定バッジ：スプライト読み込み ====
+const BADGE_SPRITE_16 = './assets/icons/table_icons/limited-badge-16-master.svg';
+const BADGE_SPRITE_20 = './assets/icons/table_icons/limited-badge-20-master.svg';
+
+function _isDesktop(){ return window.matchMedia && window.matchMedia('(min-width: 769px)').matches; }
+
+let _badgeSpriteLoaded16 = false;
+let _badgeSpriteLoaded20 = false;
+
+async function ensureBadgeSpriteLoaded(){
+  const want20 = _isDesktop();
+  const url    = want20 ? BADGE_SPRITE_20 : BADGE_SPRITE_16;
+  const flag   = want20 ? '_badgeSpriteLoaded20' : '_badgeSpriteLoaded16';
+
+  if (want20 && _badgeSpriteLoaded20) return;
+  if (!want20 && _badgeSpriteLoaded16) return;
+
+  try {
+    const res = await fetch(url, { cache: 'force-cache' });
+    const txt = await res.text();
+    const wrap = document.createElement('div');
+    wrap.style.display = 'none';
+    wrap.innerHTML = txt;            // ← <svg><symbol ...> がそのまま入る
+    document.body.appendChild(wrap);
+    if (want20) _badgeSpriteLoaded20 = true; else _badgeSpriteLoaded16 = true;
+  } catch (e) { console.error('badge sprite load failed:', e); }
+}
+
 // ====== 固定ヘッダー（iOS安定版：GPU transform + rAF + DPR丸め） ======
 // === rAF スケジューラ（イベント登録より前に定義しておく） ===
 let _rafScheduled = false;
@@ -623,6 +651,47 @@ function isExcludedFromSummary(row, scope = 'field') {
   return isDarkrai;                    // フィールド列はダークライのみ除外
 }
 
+// 種(形態)+☆ が 1フィールド限定なら、そのフィールドキーを返す。そうでなければ null
+function getEntStarLimitedField(ent, star){
+  const fields = [];
+  for (const f of FIELD_KEYS){
+    const has = ent.rows.some(r => r.DisplayRarity === star && getFieldRankNum(r, f));
+    if (has) fields.push(f);
+    if (fields.length > 1) break;
+  }
+  return fields.length === 1 ? fields[0] : null;
+}
+
+// 1行(row)が 1フィールド限定なら、そのフィールドキーを返す。そうでなければ null
+function getRowLimitedField(row){
+  const fields = FIELD_KEYS.filter(f => !!getFieldRankNum(row, f));
+  return fields.length === 1 ? fields[0] : null;
+}
+
+// フィールドキー → スプライトID名の末尾
+const FIELD_BADGE_SUFFIX = {
+  'ワカクサ本島': 'wakakusa',
+  'シアンの砂浜': 'syan',
+  'トープ洞窟': 'taupe',
+  'ウノハナ雪原': 'unohana',
+  'ラピスラズリ湖畔': 'rapis',
+  'ゴールド旧発電所': 'gold',
+  'ワカクサ本島EX': 'wakakusaex',
+};
+
+function renderLimitedBadgeByField(fieldKey){
+  if (!fieldKey) return '';
+  const suf = FIELD_BADGE_SUFFIX[fieldKey];
+  if (!suf) return '';
+
+  const useId = _isDesktop() ? `lb20-${suf}` : `lb16-${suf}`;
+  const size  = _isDesktop() ? 20 : 16;
+
+  return `
+    <svg class="limited-badge" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true" focusable="false">
+      <use href="#${useId}"></use>
+    </svg>`;
+}
 // ===================== 状態保存（★キーは IconNo 優先） =====================
 function rowKey(row){ return String(row.IconNo || row.No); }                 // 行用キー
 function entKey(ent){ return String(ent.iconNo || ent.no); }                 // まとめ用キー（形態ごと）
@@ -1040,17 +1109,15 @@ const cells = CHECKABLE_STARS.map(star => {
   if (!exists) return `<td class="text-center cell-absent">—</td>`;
 
   const checked = getChecked(state, key, star);
-  const limited = isEntStarLimited(ent, star);
-
-  return `
-    <td class="text-center ${checked ? 'cell-checked' : ''} ${limited ? 'badge-host' : ''}">
-      <input type="checkbox" class="form-check-input"
-        data-key="${key}" data-star="${star}"
-        ${checked ? 'checked' : ''}>
-      ${ limited ? `<img class="limited-badge" src="${getLimitedBadgeSrc()}" alt="" aria-hidden="true">` : '' }
-    </td>`;
-}).join('');
-
+  const limitedField = getEntStarLimitedField(ent, star);
+  const badge = limitedField ? renderLimitedBadgeByField(limitedField) : '';
+      return `
+        <td class="text-center ${checked ? 'cell-checked' : ''} ${badge ? 'badge-host' : ''}">
+          <input type="checkbox" class="form-check-input"
+            data-key="${key}" data-star="${star}"
+            ${checked ? 'checked' : ''}>
+          ${badge}
+        </td>`;
     const bulkBtn = `
       <div class="btn-group-vertical btn-group-sm bulk-group-vert" role="group" aria-label="行まとめ">
         <button type="button" class="btn btn-outline-primary" data-bulk="on"  data-key="${key}">一括ON</button>
@@ -1206,36 +1273,34 @@ const cells = CHECKABLE_STARS.map(star=>{
   if (!rankNum) return `<td class="text-center cell-disabled">ー</td>`;
 
   const checked = getChecked(state, key, star);
-  const limited = isEntStarLimited(ent, star);
-
-  return `
-    <td class="text-center toggle-cell ${checked ? 'cell-checked' : ''} ${limited ? 'badge-host' : ''}"
-        data-key="${key}" data-star="${star}">
-      ${renderRankChip(rankNum)}
-      ${ limited ? `<img class="limited-badge" src="${getLimitedBadgeSrc()}" alt="" aria-hidden="true">` : '' }
-    </td>`;
-}).join('');
-
-      rows.push(`
-        <tr>
-          <td class="byfield-name-cell text-center align-middle">
-            <div class="pf-wrap">
-              <div class="byfield-icon position-relative">
-                ${renderPokemonIconById(ent.iconNo || getIconKeyFromNo(ent.no), ICON_SIZE_FIELD)}
-                <button type="button" class="btn btn-light btn-xxs icon-more"
-                        data-entkey="${key}" aria-label="出現フィールド">▼</button>
-              </div>
-              <div class="pf-text">
-                <div class="pf-no text-muted">${ent.no}</div>
-                <div class="pf-name">${escapeHtml(ent.name)}</div>
-              </div>
-            </div>
-          </td>
-          <td class="type-cell text-center">${firstStyleKey(ent) || '-'}</td>
-          ${cells}
-        </tr>`);
+  const limitedField = getEntStarLimitedField(ent, star);
+  const badge = limitedField ? renderLimitedBadgeByField(limitedField) : '';
+      return `
+        <td class="text-center toggle-cell ${checked ? 'cell-checked' : ''} ${badge ? 'badge-host' : ''}"
+            data-key="${key}" data-star="${star}">
+          ${renderRankChip(rankNum)}
+          ${badge}
+        </td>`;
+  rows.push(`
+    <tr>
+      <td class="byfield-name-cell text-center align-middle">
+        <div class="pf-wrap">
+          <div class="byfield-icon position-relative">
+            ${renderPokemonIconById(ent.iconNo || getIconKeyFromNo(ent.no), ICON_SIZE_FIELD)}
+            <button type="button" class="btn btn-light btn-xxs icon-more"
+                    data-entkey="${key}" aria-label="出現フィールド">▼</button>
+          </div>
+          <div class="pf-text">
+            <div class="pf-no text-muted">${ent.no}</div>
+            <div class="pf-name">${escapeHtml(ent.name)}</div>
+          </div>
+        </div>
+      </td>
+      <td class="type-cell text-center">${firstStyleKey(ent) || '-'}</td>
+      ${cells}
+    </tr>`);
     }
-    tbody.innerHTML = rows.join('');
+  tbody.innerHTML = rows.join('');
 
     // ★ セル全体クリックで ON/OFF（data-key を使用）
     tbody.querySelectorAll('td.toggle-cell').forEach(td=>{
@@ -1890,6 +1955,7 @@ async function main() {
 
   await loadPokemonIconsScriptOnce();
   await loadData();
+  await ensureBadgeSpriteLoaded();
 
   setupFieldTabs();
   setupRankSearchControls();
