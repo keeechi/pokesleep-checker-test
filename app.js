@@ -1650,8 +1650,11 @@ tbody.querySelectorAll('input.mark-obtained').forEach(chk=>{
   afterRenderRankSearch();
 }
 
-    // ★ 追加：逆引き（出現ランク列）に“限”バッジ
+    // 逆引き（出現ランク列）に“限”バッジ
+    const tbody = document.querySelector('#rankSearchTable tbody');
+    if (!tbody) return;
     tbody.querySelectorAll('tr').forEach(tr => {
+      
       // 列構成: [0]=ポケモン, [1]=睡眠タイプ, [2]=レア度, [3]=出現ランク, [4]=入手済？
       const nameCell = tr.children[0];
       const rankCell = tr.children[3];
