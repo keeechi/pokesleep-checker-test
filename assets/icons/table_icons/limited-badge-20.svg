@@ -1,7 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-  <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="3.5" ry="3.5" fill="#fff" stroke="#1e7af0" stroke-width="1.5"/>
-  <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle"
+  
+      <rect
+        x="0.75" y="0.75" width="18.5" height="18.5" rx="3.5" ry="3.5"
+        fill="#fff" stroke="#1e7af0" stroke-width="1.5"/>
+  
+      <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle"
         font-family="'M PLUS Rounded 1c', 'Hiragino Maru Gothic Pro', 'Noto Sans JP', Meiryo, sans-serif"
         font-weight="700" font-size="10" fill="#1e7af0">限</text>
+  
 </svg>
 
