@@ -1517,6 +1517,8 @@ function renderRankSearch(state) {
   const star = row.DisplayRarity;
   const checkable = CHECKABLE_STARS.includes(star);
   const isChecked = checkable ? getChecked(state, k, star) : false;
+  const limitedField = getRowLimitedField(r);
+  const badge = limitedField ? renderLimitedBadgeByField(limitedField) : '';
 
   // 入手状況フィルター
   if (statusFilter === '未入手') {
@@ -1605,20 +1607,21 @@ items.sort((a,b) => primary(a,b) || tieBreaker(a,b));
           </div>
         </td>
         <td class="text-center">${r.Style || '-'}</td>
-        <td class="text-center ${limitedRow ? 'badge-host' : ''}">
-          ${r.DisplayRarity || '-'}
-          ${ limitedRow ? `<img class="limited-badge" src="${getLimitedBadgeSrc()}" alt="" aria-hidden="true">` : '' }
-        </td>
-        <td class="text-center">${renderRankChip(needRank)}</td>
-        <td class="text-center">
+      <td class="text-center ${badge ? 'badge-host' : ''}">
+        ${r.DisplayRarity || '-'}
+        ${badge}
+      </td>
+
+      <td class="text-center">${renderRankChip(needRank)}</td>
+      <td class="text-center">
         ${ checkable
             ? `<input type="checkbox" class="form-check-input mark-obtained"
                       data-key="${k}" data-star="${escapeHtml(star)}"
                       ${isChecked ? 'checked' : ''}>`
             : `<span class="text-muted">—</span>` }
-        </td>
-      </tr>`;
-  }).join('');
+      </td>
+    </tr>`;
+}).join('');
   // ここでは再描画しない（＝行は残す）。ただしサマリーは更新。
 tbody.querySelectorAll('input.mark-obtained').forEach(chk=>{
   chk.addEventListener('change', (e) => {
