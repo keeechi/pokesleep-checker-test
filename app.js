@@ -614,6 +614,120 @@ function updateStickyCloneSizes(table){
   });
 }
 
+// ======== Summary → 画像保存（A1ボタン） ========
+
+function _getSummaryTableEl(){
+  return document.querySelector('#summaryGrid .summary-table');
+}
+
+function _isIosSafari(){
+  const ua = navigator.userAgent || '';
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  const isSafari = /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+  return isIOS && isSafari;
+}
+
+async function _waitForAssets(root){
+  try { if (document.fonts?.ready) await document.fonts.ready; } catch {}
+  const imgs = Array.from(root.querySelectorAll('img'));
+  await Promise.all(imgs.map(img=>{
+    if (img.complete && img.naturalWidth > 0) return;
+    return new Promise(res=>{
+      const done = ()=>{ img.removeEventListener('load', done); img.removeEventListener('error', done); res(); };
+      img.addEventListener('load', done, { once:true });
+      img.addEventListener('error', done, { once:true });
+    });
+  }));
+}
+
+/** A1に「画像で保存」ボタンを差し込む（重複挿入なし） */
+function injectSummarySaveControl(){
+  const table = _getSummaryTableEl();
+  if (!table) return;
+  const a1 = table.querySelector('thead tr:first-child th.summary-lefthead-col');
+  if (!a1) return;
+
+  if (a1.querySelector('#saveSummaryAsImage')) return; // 既にあれば何もしない
+
+  const btn = document.createElement('button');
+  btn.id = 'saveSummaryAsImage';
+  btn.type = 'button';
+  btn.className = 'summary-save-link';
+  btn.textContent = '画像で保存';
+
+  btn.addEventListener('click', async ()=>{
+    if (!window.htmlToImage?.toPng) {
+      alert('画像保存モジュールの読み込みに失敗しました。時間をおいて再度お試しください。');
+      return;
+    }
+    const ok = confirm('サマリー表を画像で保存しますか？');
+    if (!ok) return;
+    await captureSummaryAsImage();
+  });
+
+  a1.appendChild(btn);
+}
+
+/** サマリー表全体をPNGとして保存（iOS Safari は新規タブで開くフォールバック） */
+async function captureSummaryAsImage(){
+  const table = _getSummaryTableEl();
+  if (!table) return;
+
+  const btn = table.querySelector('#saveSummaryAsImage');
+  btn?.classList.add('hide-while-capture');
+
+  // 一時的に安全な状態（スクロール/変形の影響回避）
+  const prev = { transform: table.style.transform, overflow: table.style.overflow };
+  table.style.transform = 'none';
+  table.style.overflow = 'visible';
+
+  try {
+    await _waitForAssets(table);
+
+    const pixelRatio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const dataUrl = await window.htmlToImage.toPng(table, {
+      pixelRatio,
+      backgroundColor: '#ffffff',
+      cacheBust: true
+    });
+
+    const d = new Date();
+    const name = `summary_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.png`;
+
+    if (_isIosSafari()) {
+      // iOS Safari は download 無効 → 新規タブで開いて長押し保存を促す
+      const w = window.open('', '_blank');
+      if (w && w.document) {
+        w.document.title = name;
+        const img = new Image();
+        img.src = dataUrl;
+        img.alt = 'summary';
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        w.document.body.style.margin = '0';
+        w.document.body.appendChild(img);
+      } else {
+        // ポップアップブロック時のフォールバック
+        location.href = dataUrl;
+      }
+    } else {
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  } catch (e) {
+    console.error('summary capture failed:', e);
+    alert('画像の保存に失敗しました。お手数ですがスクリーンショットをご利用ください。');
+  } finally {
+    if (btn) btn.classList.remove('hide-while-capture');
+    table.style.transform = prev.transform;
+    table.style.overflow  = prev.overflow;
+  }
+}
+
 // ==== 限定バッジ：スプライト読み込み ====
 const BADGE_SPRITE_16 = './assets/icons/table_icons/limited-badge-16-master.svg';
 const BADGE_SPRITE_20 = './assets/icons/table_icons/limited-badge-20-master.svg';
@@ -1135,6 +1249,7 @@ ${FIELD_KEYS.map(f => {
       </tbody>
     </table>`;
   root.innerHTML = header;
+  injectSummarySaveControl();
 }
 
 // ===================== 全寝顔チェックシート =====================
@@ -2218,6 +2333,7 @@ async function main() {
   // === [C] 各シートを描画（ここで高さが変わる） ===
   const state = loadState();
   renderSummary(state);
+  injectSummarySaveControl();
   renderAllFaces(state);
   renderFieldTables(state);
   renderRankSearch(state);
