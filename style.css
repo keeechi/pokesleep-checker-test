@@ -813,7 +813,7 @@ body.is-howto-open { overflow: hidden; }
   .limited-badge{ width: 20px; height: 20px; }
 }
 
-/* ▼ サマリー表：A1の「画像で保存」 */
+/* ▼ サマリーA1の保存リンク（既存に追加調整） */
 .summary-save-link{
   all: unset;
   cursor: pointer;
@@ -823,8 +823,19 @@ body.is-howto-open { overflow: hidden; }
   font-size: .95rem;
   padding: 2px 4px;
   line-height: 1.2;
+  display: inline-block;      /* 改行制御のため */
+  text-align: center;
 }
 .summary-save-link:active{ opacity:.85; }
 
-/* キャプチャ中だけ一時的に隠す */
+/* スラッシュの位置で改行（スマホのみ） */
+.summary-save-link .slash-break::after{ content: ""; } /* PCでは改行しない */
+@media (max-width: 576px){
+  .summary-save-link{ font-size: .85rem; line-height: 1.1; }
+  .summary-save-link .slash-break::after{
+    content: ""; display: block; /* スラッシュの直後で改行 */
+  }
+}
+
+/* キャプチャ中だけ一時的に隠す（既存と同じ） */
 .hide-while-capture{ visibility: hidden !important; }
