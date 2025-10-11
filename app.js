@@ -1,5 +1,5 @@
 // ===================== 設定 =====================
-const DATA_URL = './pokemon_data_cleaned.json';
+var DATA_URL = window.DATA_URL || './pokemon_data_cleaned.json';
 
 const STORAGE_KEY = 'psleep-check-v1';
 
