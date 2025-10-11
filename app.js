@@ -616,185 +616,57 @@ function updateStickyCloneSizes(table){
 
 // ======== Summary → 画像保存（A1ボタン） ========
 
-function _getSummaryTableEl(){
-  return document.querySelector('#summaryGrid .summary-table');
-}
+async function saveSummarySimple() {
+  const host = document.querySelector('#summaryGrid');       // 「表の入ってる箱」
+  const table = host?.querySelector('.summary-table');
+  if (!host || !table) return alert('表が見つかりません');
 
-function _isIosSafari(){
-  const ua = navigator.userAgent || '';
-  const isIOS = /iphone|ipad|ipod/i.test(ua);
-  // iOS版 Chrome/Firefox/Edge も WebKit なので挙動は Safari と同等
-  const isWebkit = /applewebkit/i.test(ua);
-  return isIOS && isWebkit;
-}
-
-async function _waitForAssets(root){
-  try { if (document.fonts?.ready) await document.fonts.ready; } catch {}
-  const imgs = Array.from(root.querySelectorAll('img'));
-  await Promise.all(imgs.map(img=>{
-    if (img.complete && img.naturalWidth > 0) return;
-    return new Promise(res=>{
-      const done = ()=>{ img.removeEventListener('load', done); img.removeEventListener('error', done); res(); };
-      img.addEventListener('load', done, { once:true });
-      img.addEventListener('error', done, { once:true });
-    });
+  // 1) フォントと画像だけ待つ（アイコンが欠けないように）
+  try { await document.fonts?.ready; } catch {}
+  await Promise.all([...host.querySelectorAll('img')].map(img => {
+    if (img.complete && img.naturalWidth) return;
+    return new Promise(r => img.addEventListener('load', r, {once:true}));
   }));
-}
 
-/** 列幅を固定したクローンを作る（thead/th の実測幅を th/td に反映） */
-function _buildFrozenCloneForTable(table){
-  // 1) サイズ実測
-  const headerRow = table.tHead?.rows?.[0];
-  if (!headerRow) return table.cloneNode(true);
-  const ths = Array.from(headerRow.cells);
-  const colWidths = ths.map(th => Math.ceil(th.getBoundingClientRect().width));
-
-  // 2) クローンをオフスクリーンに作成
-  const staging = document.createElement('div');
-  staging.style.position = 'fixed';
-  staging.style.left = '-20000px';
-  staging.style.top  = '0';
-  staging.style.width = Math.ceil(table.getBoundingClientRect().width) + 'px';
-  staging.style.zIndex = '-1';
-  staging.style.background = '#fff';
-
-  const clone = table.cloneNode(true);
-  clone.style.width = Math.ceil(table.getBoundingClientRect().width) + 'px';
-  clone.style.tableLayout = 'fixed';
-  clone.style.borderCollapse = 'separate'; // html-to-image のズレ抑止
-
-  // 3) 各列の th/td に固定幅を反映
-  const applyWidths = row => {
-    Array.from(row.cells).forEach((cell, i) => {
-      const w = colWidths[i] || 0;
-      if (!w) return;
-      cell.style.width = w + 'px';
-      cell.style.minWidth = w + 'px';
-      cell.style.maxWidth = w + 'px';
-      cell.style.boxSizing = 'border-box';
-      // 画像バッジがはみ出すとレイアウトが変わることがあるので overflow を隠す
-      cell.style.overflow = 'hidden';
-    });
-  };
-  // thead
-  Array.from(clone.tHead?.rows || []).forEach(applyWidths);
-  // tbody
-  Array.from(clone.tBodies || []).forEach(tb => Array.from(tb.rows).forEach(applyWidths));
-
-  staging.appendChild(clone);
-  document.body.appendChild(staging);
-  return { staging, clone };
-}
-
-/** A1に「画像で保存」ボタンを差し込む（重複挿入なし & スマホ用改行対応） */
-function injectSummarySaveControl(){
-  const table = _getSummaryTableEl();
-  if (!table) return;
-  const a1 = table.querySelector('thead tr:first-child th.summary-lefthead-col');
-  if (!a1) return;
-
-  if (a1.querySelector('#saveSummaryAsImage')) return; // 既にあれば何もしない
-
-  const btn = document.createElement('button');
-  btn.id = 'saveSummaryAsImage';
-  btn.type = 'button';
-  btn.className = 'summary-save-link';
-  // スマホでは「画像で/保存」で改行させるためのスラッシュ要素を含む
-  btn.innerHTML = '画像で<span class="slash-break">/</span>保存';
-
-  btn.addEventListener('click', async ()=>{
-    if (!window.htmlToImage?.toPng) {
-      alert('画像保存モジュールの読み込みに失敗しました。時間をおいて再度お試しください。');
-      return;
-    }
-    const ok = confirm('サマリー表を画像で保存しますか？');
-    if (!ok) return;
-
-    // iOS のポップアップブロック対策：先に空タブを開いておく（必要な場合のみ）
-    const willOpenTab = _isIosSafari();
-    const pendingWin = willOpenTab ? window.open('', '_blank') : null;
-
-    await captureSummaryAsImage(pendingWin);
-  });
-
-  a1.appendChild(btn);
-}
-
-/** サマリー表全体をPNGとして保存（PC: download / iOS: ShareSheet or 新規タブ） */
-async function captureSummaryAsImage(pendingWin = null){
-  const table = _getSummaryTableEl();
-  if (!table) return;
-
-  const btn = table.querySelector('#saveSummaryAsImage');
-  btn?.classList.add('hide-while-capture');
+  // 2) “一時的に”幅固定：今の実測幅をstyleに入れる
+  const w = Math.ceil(host.getBoundingClientRect().width);
+  const prevWidth = host.style.width;
+  host.style.width = w + 'px';
+  host.classList.add('summary-capture');
 
   try {
-    // 幅固定クローンを作ってからキャプチャ
-    const built = _buildFrozenCloneForTable(table);
-    const staging = built.staging || null;
-    const clone   = built.clone   || null;
-    const target  = clone || table;
-
-    await _waitForAssets(target);
-
-    const pixelRatio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    const dataUrl = await window.htmlToImage.toPng(target, {
-      pixelRatio,
+    // 3) 画像化（倍率2くらいで十分）
+    const dataUrl = await htmlToImage.toPng(host, {
+      pixelRatio: Math.min(2, window.devicePixelRatio || 1),
       backgroundColor: '#ffffff',
-      cacheBust: true,
-      // iOSでフォント・SVGレンダリングが崩れるのを少し緩和
-      style: {
-        transform: 'none',
-        overflow: 'visible',
-      }
+      cacheBust: true
     });
 
-    const d = new Date();
-    const name = `summary_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.png`;
+    const fileName = 'summary.png';
 
-    // ---- まず Web Share API (iOS/Android 対応) を優先 ----
+    // 4) モバイル優先：Web Share（→ iOSは「画像を保存」でカメラロール入り）
     try {
       const blob = await (await fetch(dataUrl)).blob();
-      const file = new File([blob], name, { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      const file = new File([blob], fileName, { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: 'サマリー画像' });
-        // 共有シートから「画像を保存」を選べば、iOSでもカメラロール保存可能
-        // （ユーザー操作は必要ですが、iOSの仕様上の最短経路です）
         return;
       }
-    } catch { /* Share 不可時は下の保存系にフォールバック */ }
+    } catch {}
 
-    // ---- フォールバック：iOSは新規タブで表示（長押し→写真に追加）／PC/Androidは download ----
-    if (_isIosSafari()) {
-      const w = pendingWin || window.open('', '_blank');
-      if (w && w.document) {
-        w.document.title = name;
-        const img = new Image();
-        img.src = dataUrl;
-        img.alt = 'summary';
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-        w.document.body.style.margin = '0';
-        w.document.body.appendChild(img);
-      } else {
-        location.href = dataUrl; // 最後の手段
-      }
+    // 5) フォールバック：PCはdownload、iOSは新規タブ→長押し保存
+    if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+      const w = window.open('', '_blank');
+      w?.document.write(`<img src="${dataUrl}" style="max-width:100%;height:auto">`);
+      w?.document.close();
     } else {
       const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      a.href = dataUrl; a.download = fileName; a.click();
     }
-  } catch (e) {
-    console.error('summary capture failed:', e);
-    alert('画像の保存に失敗しました。お手数ですがスクリーンショットをご利用ください。');
   } finally {
-    // クローンを撤去
-    const staging = document.querySelector('body > div[style*="left: -20000px"]');
-    if (staging && staging.parentNode) staging.parentNode.removeChild(staging);
-    btn?.classList.remove('hide-while-capture');
+    // 6) 後片付け
+    host.classList.remove('summary-capture');
+    host.style.width = prevWidth;
   }
 }
 
