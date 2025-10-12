@@ -662,14 +662,15 @@ function injectSummarySaveControl(){
     }
     const ok = confirm('サマリー表を画像で保存しますか？');
     if (!ok) return;
-    await captureSummaryAsImage();
+    const preOpened = _isIosSafari() ? window.open('about:blank', '_blank') : null;
+    await captureSummaryAsImage(preOpened);
   });
 
   a1.appendChild(btn);
 }
 
 /** サマリー表全体をPNGとして保存（iOS Safari は新規タブで開くフォールバック） */
-async function captureSummaryAsImage(){
+async function captureSummaryAsImage(preOpenedWindow){
   const table = _getSummaryTableEl();
   if (!table) return;
 
@@ -695,8 +696,8 @@ async function captureSummaryAsImage(){
     const name = `summary_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.png`;
 
     if (_isIosSafari()) {
-      // iOS Safari は download 無効 → 新規タブで開いて長押し保存を促す
-      const w = window.open('', '_blank');
+      // 先に開いた空タブ（ポップアップブロック回避）を使う
+      const w = preOpenedWindow || window.open('', '_blank');
       if (w && w.document) {
         w.document.title = name;
         const img = new Image();
