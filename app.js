@@ -1,5 +1,5 @@
 // ===================== 設定 =====================
-const PS_DATA_URL = window.PS_DATA_URL ?? window.DATA_URL ?? './pokemon_data_cleaned.json';
+const DATA_URL = './pokemon_data_cleaned.json';
 
 const STORAGE_KEY = 'psleep-check-v1';
 
@@ -616,59 +616,144 @@ function updateStickyCloneSizes(table){
 
 // ======== Summary → 画像保存（A1ボタン） ========
 
-async function saveSummarySimple() {
-  const host = document.querySelector('#summaryGrid');       // 「表の入ってる箱」
-  const table = host?.querySelector('.summary-table');
-  if (!host || !table) return alert('表が見つかりません');
-  window.saveSummarySimple = window.saveSummarySimple || saveSummarySimple;
+function _getSummaryTableEl(){
+  return document.querySelector('#summaryGrid .summary-table');
+}
 
-  // 1) フォントと画像だけ待つ（アイコンが欠けないように）
-  try { await document.fonts?.ready; } catch {}
-  await Promise.all([...host.querySelectorAll('img')].map(img => {
-    if (img.complete && img.naturalWidth) return;
-    return new Promise(r => img.addEventListener('load', r, {once:true}));
+function _isIosSafari(){
+  const ua = navigator.userAgent || '';
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  const isSafari = /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+  return isIOS && isSafari;
+}
+
+async function _waitForAssets(root){
+  try { if (document.fonts?.ready) await document.fonts.ready; } catch {}
+  const imgs = Array.from(root.querySelectorAll('img'));
+  await Promise.all(imgs.map(img=>{
+    if (img.complete && img.naturalWidth > 0) return;
+    return new Promise(res=>{
+      const done = ()=>{ img.removeEventListener('load', done); img.removeEventListener('error', done); res(); };
+      img.addEventListener('load', done, { once:true });
+      img.addEventListener('error', done, { once:true });
+    });
   }));
+}
 
-  // 2) “一時的に”幅固定：今の実測幅をstyleに入れる
-  const w = Math.ceil(host.getBoundingClientRect().width);
-  const prevWidth = host.style.width;
-  host.style.width = w + 'px';
-  host.classList.add('summary-capture');
+/** A1に「画像で保存」ボタンを差し込む（重複挿入なし） */
+function injectSummarySaveControl(){
+  const table = _getSummaryTableEl();
+  if (!table) return;
+  const a1 = table.querySelector('thead tr:first-child th.summary-lefthead-col');
+  if (!a1) return;
+
+  if (a1.querySelector('#saveSummaryAsImage')) return; // 既にあれば何もしない
+
+  const btn = document.createElement('button');
+  btn.id = 'saveSummaryAsImage';
+  btn.type = 'button';
+  btn.className = 'summary-save-link';
+  btn.textContent = '画像で保存';
+
+  btn.addEventListener('click', async ()=>{
+    if (!window.htmlToImage?.toPng) {
+      alert('画像保存モジュールの読み込みに失敗しました。時間をおいて再度お試しください。');
+      return;
+    }
+    const ok = confirm('サマリー表を画像で保存しますか？');
+    if (!ok) return;
+    await captureSummaryAsImage();
+  });
+
+  a1.appendChild(btn);
+}
+
+/** サマリー表全体をPNGとして保存（iOS Safari は新規タブで開くフォールバック） */
+async function captureSummaryAsImage(){
+  const table = _getSummaryTableEl();
+  if (!table) return;
+
+  const btn = table.querySelector('#saveSummaryAsImage');
+  btn?.classList.add('hide-while-capture');
+
+  // 一時的に安全な状態（スクロール/変形の影響回避）
+  const prev = { transform: table.style.transform, overflow: table.style.overflow };
+  table.style.transform = 'none';
+  table.style.overflow = 'visible';
 
   try {
-    // 3) 画像化（倍率2くらいで十分）
-    const dataUrl = await htmlToImage.toPng(host, {
-      pixelRatio: Math.min(2, window.devicePixelRatio || 1),
+    await _waitForAssets(table);
+
+    const pixelRatio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const dataUrl = await window.htmlToImage.toPng(table, {
+      pixelRatio,
       backgroundColor: '#ffffff',
       cacheBust: true
     });
 
-    const fileName = 'summary.png';
+    const d = new Date();
+    const name = `summary_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.png`;
 
-    // 4) モバイル優先：Web Share（→ iOSは「画像を保存」でカメラロール入り）
-    try {
-      const blob = await (await fetch(dataUrl)).blob();
-      const file = new File([blob], fileName, { type: 'image/png' });
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'サマリー画像' });
-        return;
-      }
-    } catch {}
-
-    // 5) フォールバック：PCはdownload、iOSは新規タブ→長押し保存
-    if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+    if (_isIosSafari()) {
+      // iOS Safari は download 無効 → 新規タブで開いて長押し保存を促す
       const w = window.open('', '_blank');
-      w?.document.write(`<img src="${dataUrl}" style="max-width:100%;height:auto">`);
-      w?.document.close();
+      if (w && w.document) {
+        w.document.title = name;
+        const img = new Image();
+        img.src = dataUrl;
+        img.alt = 'summary';
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        w.document.body.style.margin = '0';
+        w.document.body.appendChild(img);
+      } else {
+        // ポップアップブロック時のフォールバック
+        location.href = dataUrl;
+      }
     } else {
       const a = document.createElement('a');
-      a.href = dataUrl; a.download = fileName; a.click();
+      a.href = dataUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     }
+  } catch (e) {
+    console.error('summary capture failed:', e);
+    alert('画像の保存に失敗しました。お手数ですがスクリーンショットをご利用ください。');
   } finally {
-    // 6) 後片付け
-    host.classList.remove('summary-capture');
-    host.style.width = prevWidth;
+    if (btn) btn.classList.remove('hide-while-capture');
+    table.style.transform = prev.transform;
+    table.style.overflow  = prev.overflow;
   }
+}
+
+// ==== 限定バッジ：スプライト読み込み ====
+const BADGE_SPRITE_16 = './assets/icons/table_icons/limited-badge-16-master.svg';
+const BADGE_SPRITE_20 = './assets/icons/table_icons/limited-badge-20-master.svg';
+
+function _isDesktop(){ return window.matchMedia && window.matchMedia('(min-width: 769px)').matches; }
+
+let _badgeSpriteLoaded16 = false;
+let _badgeSpriteLoaded20 = false;
+
+async function ensureBadgeSpriteLoaded(){
+  const want20 = _isDesktop();
+  const url    = want20 ? BADGE_SPRITE_20 : BADGE_SPRITE_16;
+  const flag   = want20 ? '_badgeSpriteLoaded20' : '_badgeSpriteLoaded16';
+
+  if (want20 && _badgeSpriteLoaded20) return;
+  if (!want20 && _badgeSpriteLoaded16) return;
+
+  try {
+    const res = await fetch(url, { cache: 'force-cache' });
+    const txt = await res.text();
+    const wrap = document.createElement('div');
+    wrap.style.display = 'none';
+    wrap.innerHTML = txt;            // ← <svg><symbol ...> がそのまま入る
+    document.body.appendChild(wrap);
+    if (want20) _badgeSpriteLoaded20 = true; else _badgeSpriteLoaded16 = true;
+  } catch (e) { console.error('badge sprite load failed:', e); }
 }
 
 // ====== 固定ヘッダー（iOS安定版：GPU transform + rAF + DPR丸め） ======
@@ -860,33 +945,18 @@ const FIELD_BADGE_SUFFIX = {
   'ワカクサ本島EX': 'wakakusaex',
 };
 
-// --- 限定バッジ用スプライトの読み込み（無ければ何もしない） ---
-async function ensureBadgeSpriteLoaded(){
-  // 将来スプライトを外部SVGから読むなら、ここでfetch→<div style="display:none">挿入 などを実装。
-  // いまはダミーでOK（未定義エラーを防ぐ）
-}
-
 function renderLimitedBadgeByField(fieldKey){
   if (!fieldKey) return '';
   const suf = FIELD_BADGE_SUFFIX[fieldKey];
   if (!suf) return '';
 
- const useId = _isDesktop() ? `lb20-${suf}` : `lb16-${suf}`;
- const size  = _isDesktop() ? 20 : 16;
- // スプライトが無い環境ではフォールバック（小さな丸バッジに頭文字）
- const spriteExists = !!document.getElementById(useId);
- if (!spriteExists) {
-   const label = (FIELD_SHORT[fieldKey] || fieldKey).slice(0,1);
-  return `<span class="limited-badge-fallback" style="
-    display:inline-flex;align-items:center;justify-content:center;
-    width:${size}px;height:${size}px;border-radius:50%;
-    background:#f03;color:#fff;font-size:${Math.max(10, size-8)}px;
-    line-height:1;" title="${fieldKey}限定">${label}</span>`;
-}
-return `<svg class="limited-badge" width="${size}" height="${size}"
-    viewBox="0 0 ${size} ${size}" aria-hidden="true" focusable="false">
-    <use href="#${useId}"></use>
-  </svg>`;
+  const useId = _isDesktop() ? `lb20-${suf}` : `lb16-${suf}`;
+  const size  = _isDesktop() ? 20 : 16;
+
+  return `
+    <svg class="limited-badge" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true" focusable="false">
+      <use href="#${useId}"></use>
+    </svg>`;
 }
 // ===================== 状態保存（★キーは IconNo 優先） =====================
 function rowKey(row){ return String(row.IconNo || row.No); }                 // 行用キー
@@ -938,7 +1008,7 @@ let RAW_ROWS = [];
 let SPECIES_MAP = new Map();  // key: `${No}__${Name}` → 形態ごと
 
 async function loadData() {
-  const res = await fetch(PS_DATA_URL);
+  const res = await fetch(DATA_URL);
   const json = await res.json();
   const rows = Array.isArray(json) ? json : (json['すべての寝顔一覧'] || []);
   RAW_ROWS = rows.map(r => ({
