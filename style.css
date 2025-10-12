@@ -813,13 +813,18 @@ body.is-howto-open { overflow: hidden; }
   .limited-badge{ width: 20px; height: 20px; }
 }
 
-/* 撮影中は幅を固定＆ボタン非表示にするだけ */
-.summary-capture {
-  background:#fff;            /* 透過防止 */
+/* ▼ サマリー表：A1の「画像で保存」 */
+.summary-save-link{
+  all: unset;
+  cursor: pointer;
+  color: var(--bs-link-color, #0d6efd);
+  text-decoration: underline;
+  font-weight: 600;
+  font-size: .95rem;
+  padding: 2px 4px;
+  line-height: 1.2;
 }
-.summary-capture .summary-table {
-  table-layout: fixed;        /* 幅ぶれ防止 */
-}
-.summary-capture #saveSummaryAsImage {
-  visibility: hidden;         /* ボタンを写さない */
-}
+.summary-save-link:active{ opacity:.85; }
+
+/* キャプチャ中だけ一時的に隠す */
+.hide-while-capture{ visibility: hidden !important; }
