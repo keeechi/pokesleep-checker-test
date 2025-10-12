@@ -695,22 +695,49 @@ async function captureSummaryAsImage(preOpenedWindow){
     const d = new Date();
     const name = `summary_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.png`;
 
-    if (_isIosSafari()) {
-      // 先に開いた空タブ（ポップアップブロック回避）を使う
-      const w = preOpenedWindow || window.open('', '_blank');
-      if (w && w.document) {
-        w.document.title = name;
-        const img = new Image();
-        img.src = dataUrl;
-        img.alt = 'summary';
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-        w.document.body.style.margin = '0';
-        w.document.body.appendChild(img);
-      } else {
-        // ポップアップブロック時のフォールバック
-        location.href = dataUrl;
-      }
+   // --- ① iOS/対応環境では「共有シート」で保存させる（カメラロールへ保存可能） ---
+   // iOS 16+ Safari など Web Share Level 2 (files) 対応時
+   try {
+     const blob = await window.htmlToImage.toBlob(table, {
+       pixelRatio,
+       backgroundColor: '#ffffff',
+       cacheBust: true
+     });
+     if (blob && typeof navigator.canShare === 'function') {
+       const file = new File([blob], name, { type: 'image/png' });
+       if (navigator.canShare({ files: [file] })) {
+         // 共有シートを表示（ユーザーが「画像を保存」を選べばカメラロールへ）
+         await navigator.share({ files: [file], title: 'サマリー画像', text: '' });
+         // 共有できたら空タブは不要
+         try { preOpenedWindow?.close(); } catch {}
+         return;
+       }
+     }
+   } catch (e) {
+     // canShare未対応/ユーザーキャンセル等はそのままフォールバックへ
+   }
+
+     // --- ② フォールバック：先に開いた空タブで画像を「直表示」 ---
+     const w = preOpenedWindow || window.open('', '_blank');
+     if (w) {
+       try {
+         // 画像ビューアで開く → 共有ボタンから「画像を保存」でカメラロールへ
+         w.location.href = dataUrl;
+       } catch {
+         // まれに location 設定が弾かれたら、HTMLで <img> を埋め込む
+         try {
+           w.document.title = name;
+           w.document.body.style.margin = '0';
+           w.document.body.innerHTML = `<img src="${dataUrl}" alt="summary" style="max-width:100%;height:auto;display:block" />`;
+         } catch {
+           // それでもダメなら最終手段：同ウィンドウ遷移
+           location.href = dataUrl;
+         }
+       }
+     } else {
+       // 空タブを確保できなかった場合は同ウィンドウで開く
+       location.href = dataUrl;
+     }
     } else {
       const a = document.createElement('a');
       a.href = dataUrl;
