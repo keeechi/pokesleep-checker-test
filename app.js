@@ -1,5 +1,5 @@
 // ===================== 設定 =====================
-var DATA_URL = window.DATA_URL || './pokemon_data_cleaned.json';
+const PS_DATA_URL = window.PS_DATA_URL ?? window.DATA_URL ?? './pokemon_data_cleaned.json';
 
 const STORAGE_KEY = 'psleep-check-v1';
 
@@ -620,6 +620,7 @@ async function saveSummarySimple() {
   const host = document.querySelector('#summaryGrid');       // 「表の入ってる箱」
   const table = host?.querySelector('.summary-table');
   if (!host || !table) return alert('表が見つかりません');
+  window.saveSummarySimple = window.saveSummarySimple || saveSummarySimple;
 
   // 1) フォントと画像だけ待つ（アイコンが欠けないように）
   try { await document.fonts?.ready; } catch {}
@@ -859,18 +860,33 @@ const FIELD_BADGE_SUFFIX = {
   'ワカクサ本島EX': 'wakakusaex',
 };
 
+// --- 限定バッジ用スプライトの読み込み（無ければ何もしない） ---
+async function ensureBadgeSpriteLoaded(){
+  // 将来スプライトを外部SVGから読むなら、ここでfetch→<div style="display:none">挿入 などを実装。
+  // いまはダミーでOK（未定義エラーを防ぐ）
+}
+
 function renderLimitedBadgeByField(fieldKey){
   if (!fieldKey) return '';
   const suf = FIELD_BADGE_SUFFIX[fieldKey];
   if (!suf) return '';
 
-  const useId = _isDesktop() ? `lb20-${suf}` : `lb16-${suf}`;
-  const size  = _isDesktop() ? 20 : 16;
-
-  return `
-    <svg class="limited-badge" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true" focusable="false">
-      <use href="#${useId}"></use>
-    </svg>`;
+ const useId = _isDesktop() ? `lb20-${suf}` : `lb16-${suf}`;
+ const size  = _isDesktop() ? 20 : 16;
+ // スプライトが無い環境ではフォールバック（小さな丸バッジに頭文字）
+ const spriteExists = !!document.getElementById(useId);
+ if (!spriteExists) {
+   const label = (FIELD_SHORT[fieldKey] || fieldKey).slice(0,1);
+  return `<span class="limited-badge-fallback" style="
+    display:inline-flex;align-items:center;justify-content:center;
+    width:${size}px;height:${size}px;border-radius:50%;
+    background:#f03;color:#fff;font-size:${Math.max(10, size-8)}px;
+    line-height:1;" title="${fieldKey}限定">${label}</span>`;
+}
+return `<svg class="limited-badge" width="${size}" height="${size}"
+    viewBox="0 0 ${size} ${size}" aria-hidden="true" focusable="false">
+    <use href="#${useId}"></use>
+  </svg>`;
 }
 // ===================== 状態保存（★キーは IconNo 優先） =====================
 function rowKey(row){ return String(row.IconNo || row.No); }                 // 行用キー
@@ -922,7 +938,7 @@ let RAW_ROWS = [];
 let SPECIES_MAP = new Map();  // key: `${No}__${Name}` → 形態ごと
 
 async function loadData() {
-  const res = await fetch(DATA_URL);
+  const res = await fetch(PS_DATA_URL);
   const json = await res.json();
   const rows = Array.isArray(json) ? json : (json['すべての寝顔一覧'] || []);
   RAW_ROWS = rows.map(r => ({
