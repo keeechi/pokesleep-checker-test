@@ -671,7 +671,7 @@ function injectSummarySaveControl(){
  *  PC/Android: 直ダウンロード（非対応・失敗時は即フォールバック）
  *  iOS: 新タブ表示 → 長押し保存
  */
-async function captureSummaryAsImage(){
+async function captureSummaryAsImage(preopenedWin){
   const table = _getSummaryTableEl();
   if (!table) return;
 
@@ -697,8 +697,9 @@ async function captureSummaryAsImage(){
     const name = `summary_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.png`;
 
     // iOS Safari は download不可 → 新タブで表示（長押し保存）
-    if (_isIosSafari()) {
-      _openImageInNewTab(dataUrl, name);
+　   if (_isIosSafari()) {
+      // ★ 先に開いたタブへ描画（ポップアップブロック回避）
+      _openImageInNewTab(dataUrl, name, preopenedWin);
       return;
     }
 
@@ -750,16 +751,20 @@ function _canAnchorDownload(){
   const a = document.createElement('a');
   return 'download' in a;
 }
-function _openImageInNewTab(dataUrl, name){
-  const w = window.open('', '_blank');
+function _openImageInNewTab(dataUrl, name, preopenedWin){
+  // ★ 事前に開いたウィンドウがあれば最優先で使う
+  const w = preopenedWin || window.open('', '_blank');
   if (w && w.document) {
     w.document.title = name || 'image';
+    // まっさらな本文を用意してから描画
+    try { w.document.open(); } catch(_) {}
+    w.document.write('<!doctype html><title></title><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0"></body>');
+    try { w.document.close(); } catch(_) {}
     const img = new Image();
     img.src = dataUrl;
     img.alt = name || 'image';
     img.style.maxWidth = '100%';
     img.style.height = 'auto';
-    w.document.body.style.margin = '0';
     // ガイド（任意）：長押し保存のヒント
     const hint = document.createElement('div');
     hint.style.cssText = 'position:fixed;left:0;right:0;bottom:0;padding:10px 12px;background:#0008;color:#fff;font-size:14px';
@@ -807,7 +812,9 @@ function _ensureSaveGuideDOM(){
   });
   document.getElementById('ssgOk').addEventListener('click', async ()=>{
     _closeSaveGuide();
-    await captureSummaryAsImage(); // OKで本処理へ
+    // ★ iOS Safari はここ（同期処理）で空タブを先に開いてハンドルを保持
+    const preopenedWin = _isIosSafari() ? window.open('about:blank', '_blank') : null;
+    await captureSummaryAsImage(preopenedWin); // OKで本処理へ
   });
 
   _saveGuideMounted = true;
