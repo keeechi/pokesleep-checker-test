@@ -697,9 +697,18 @@ async function captureSummaryAsImage(preopenedWin){
     const name = `summary_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.png`;
 
     // iOS Safari は download不可 → 新タブで表示（長押し保存）
-　   if (_isIosSafari()) {
-      // ★ 先に開いたタブへ描画（ポップアップブロック回避）
-      _openImageInNewTab(dataUrl, name, preopenedWin);
+    if (_isIosSafari()) {
+      // iOSは location 直差しが最も安定。メモリ節約のため dataURL→Blob→ObjectURL にして渡す
+      try {
+        const blob = await (await fetch(dataUrl)).blob();
+        const objectUrl = URL.createObjectURL(blob);
+        _openImageInNewTab(objectUrl, name, preopenedWin, /*isObjectUrl*/ true);
+        // 後始末（タブ側に遷移が終わったであろう頃に解放）
+        setTimeout(()=>URL.revokeObjectURL(objectUrl), 10_000);
+      } catch {
+        // フォールバック：dataURL のままでも試す
+        _openImageInNewTab(dataUrl, name, preopenedWin, /*isObjectUrl*/ false);
+      }
       return;
     }
 
@@ -751,30 +760,38 @@ function _canAnchorDownload(){
   const a = document.createElement('a');
   return 'download' in a;
 }
-function _openImageInNewTab(dataUrl, name, preopenedWin){
-  // ★ 事前に開いたウィンドウがあれば最優先で使う
-  const w = preopenedWin || window.open('', '_blank');
-  if (w && w.document) {
-    w.document.title = name || 'image';
-    // まっさらな本文を用意してから描画
-    try { w.document.open(); } catch(_) {}
-    w.document.write('<!doctype html><title></title><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0"></body>');
-    try { w.document.close(); } catch(_) {}
-    const img = new Image();
-    img.src = dataUrl;
-    img.alt = name || 'image';
-    img.style.maxWidth = '100%';
-    img.style.height = 'auto';
-    // ガイド（任意）：長押し保存のヒント
-    const hint = document.createElement('div');
-    hint.style.cssText = 'position:fixed;left:0;right:0;bottom:0;padding:10px 12px;background:#0008;color:#fff;font-size:14px';
-    hint.textContent = '画像を長押しして「画像を保存」を選択してください。';
-    w.document.body.appendChild(img);
-    w.document.body.appendChild(hint);
-  } else {
+function _openImageInNewTab(url, name, preopenedWin, isObjectUrl = false){
+  // 事前に開いたタブがあればそれを優先
+  const w = preopenedWin || window.open('about:blank', '_blank');
+  if (!w) {
     // ポップアップブロック時の最後の手段
-    location.href = dataUrl;
+    location.href = url;
+    return;
   }
+
+  // iOS Safariは location 差し替えが最も確実
+  try {
+    // replace() でヒストリを汚さない
+    w.location.replace(url);
+    return;
+  } catch (_) {
+    // まれに同一タブでの replace が弾かれるケース → DOM 挿入にフォールバック
+  }
+
+  // フォールバック：HTMLを直接書いて <img> で表示
+  try { w.document.open(); } catch(_) {}
+  w.document.write(
+    '<!doctype html>' +
+    `<title>${(name||'image')}</title>` +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<body style="margin:0">' +
+    `<img src="${url}" alt="${(name||'image')}" style="max-width:100%;height:auto;display:block;margin:0 auto;">` +
+    '<div style="position:fixed;left:0;right:0;bottom:0;padding:10px 12px;background:rgba(0,0,0,.5);color:#fff;font-size:14px;text-align:center;">' +
+    '画像を長押しして「画像を保存」を選択してください。' +
+    '</div>' +
+    '</body>'
+  );
+  try { w.document.close(); } catch(_) {}
 }
 
 // ======== 「画像で保存」ガイドポップアップ ========
