@@ -686,7 +686,7 @@ async function captureSummaryAsImage(preopenedWin){
   try {
     await _waitForAssets(table);
 
-    const pixelRatio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const pixelRatio = _isIosSafari() ? 2 : Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     const dataUrl = await window.htmlToImage.toPng(table, {
       pixelRatio,
       backgroundColor: '#ffffff',
@@ -698,15 +698,14 @@ async function captureSummaryAsImage(preopenedWin){
 
     // iOS Safari は download不可 → 新タブで表示（長押し保存）
     if (_isIosSafari()) {
-      // iOSは location 直差しが最も安定。メモリ節約のため dataURL→Blob→ObjectURL にして渡す
+      // ★ 先に開いたタブがある想定：location を差し替えるのが最も安定
       try {
+        // dataURL→Blob→ObjectURL（大きい画像で安定）
         const blob = await (await fetch(dataUrl)).blob();
-        const objectUrl = URL.createObjectURL(blob);
-        _openImageInNewTab(objectUrl, name, preopenedWin, /*isObjectUrl*/ true);
-        // 後始末（タブ側に遷移が終わったであろう頃に解放）
-        setTimeout(()=>URL.revokeObjectURL(objectUrl), 10_000);
+        const obj = URL.createObjectURL(blob);
+        _openImageInNewTab(obj, name, preopenedWin, /*isObjectUrl*/ true);
+        setTimeout(()=>URL.revokeObjectURL(obj), 10000);
       } catch {
-        // フォールバック：dataURL のままでも試す
         _openImageInNewTab(dataUrl, name, preopenedWin, /*isObjectUrl*/ false);
       }
       return;
@@ -829,9 +828,17 @@ function _ensureSaveGuideDOM(){
   });
   document.getElementById('ssgOk').addEventListener('click', async ()=>{
     _closeSaveGuide();
-    // ★ iOS Safari はここ（同期処理）で空タブを先に開いてハンドルを保持
-    const preopenedWin = _isIosSafari() ? window.open('about:blank', '_blank') : null;
-    await captureSummaryAsImage(preopenedWin); // OKで本処理へ
+    // ★ ユーザー操作“直下”でプレオープン（これが超重要）
+    const preWin = window.open('about:blank', '_blank');
+    try {
+      if (preWin && preWin.document) {
+        // プレースホルダーを書いて“生かしておく”
+        preWin.document.open();
+        preWin.document.write('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>画像を生成中…</title><body style="margin:0;font:14px -apple-system,system-ui,Segoe UI,Roboto;">画像を生成中…</body>');
+        preWin.document.close();
+      }
+    } catch(_) {}
+    await captureSummaryAsImage(preWin); // ★ 参照を渡す
   });
 
   _saveGuideMounted = true;
