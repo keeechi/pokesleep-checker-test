@@ -647,7 +647,7 @@ function injectSummarySaveControl(){
   const a1 = table.querySelector('thead tr:first-child th.summary-lefthead-col');
   if (!a1) return;
 
-  if (a1.querySelector('#saveSummaryAsImage')) return; // 既にあれば何もしない
+  if (a1.querySelector('#saveSummaryAsImage')) return; // 既存なら何もしない
 
   const btn = document.createElement('button');
   btn.id = 'saveSummaryAsImage';
@@ -655,20 +655,22 @@ function injectSummarySaveControl(){
   btn.className = 'summary-save-link';
   btn.textContent = '画像で保存';
 
-  btn.addEventListener('click', async ()=>{
+  btn.addEventListener('click', ()=>{
     if (!window.htmlToImage?.toPng) {
       alert('画像保存モジュールの読み込みに失敗しました。時間をおいて再度お試しください。');
       return;
     }
-    const ok = confirm('サマリー表を画像で保存しますか？');
-    if (!ok) return;
-    await captureSummaryAsImage();
+    // 仕様：クリックでまずガイドポップアップ → OKで保存実行
+    _openSaveGuide();
   });
 
   a1.appendChild(btn);
 }
 
-/** サマリー表全体をPNGとして保存（iOS Safari は新規タブで開くフォールバック） */
+/** サマリー表全体をPNGとして保存
+ *  PC/Android: 直ダウンロード（非対応・失敗時は即フォールバック）
+ *  iOS: 新タブ表示 → 長押し保存
+ */
 async function captureSummaryAsImage(){
   const table = _getSummaryTableEl();
   if (!table) return;
@@ -676,7 +678,7 @@ async function captureSummaryAsImage(){
   const btn = table.querySelector('#saveSummaryAsImage');
   btn?.classList.add('hide-while-capture');
 
-  // 一時的に安全な状態（スクロール/変形の影響回避）
+  // 画像化の瞬間に崩れないよう安全側に
   const prev = { transform: table.style.transform, overflow: table.style.overflow };
   table.style.transform = 'none';
   table.style.overflow = 'visible';
@@ -694,29 +696,36 @@ async function captureSummaryAsImage(){
     const d = new Date();
     const name = `summary_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.png`;
 
+    // iOS Safari は download不可 → 新タブで表示（長押し保存）
     if (_isIosSafari()) {
-      // iOS Safari は download 無効 → 新規タブで開いて長押し保存を促す
-      const w = window.open('', '_blank');
-      if (w && w.document) {
-        w.document.title = name;
-        const img = new Image();
-        img.src = dataUrl;
-        img.alt = 'summary';
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-        w.document.body.style.margin = '0';
-        w.document.body.appendChild(img);
-      } else {
-        // ポップアップブロック時のフォールバック
-        location.href = dataUrl;
+      _openImageInNewTab(dataUrl, name);
+      return;
+    }
+
+    // ここから PC/Android の直ダウンロード
+    // 一部ブラウザ（WebView等）は最初から非対応とみなしてフォールバック
+    let fallbackNeeded = (!_canAnchorDownload() || _isAndroidWebView());
+
+    if (!fallbackNeeded) {
+      try {
+        // dataURL → Blob → objectURL の方が安定
+        const blob = await (await fetch(dataUrl)).blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(()=>URL.revokeObjectURL(objectUrl), 2000);
+      } catch {
+        fallbackNeeded = true;
       }
-    } else {
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+    }
+
+    // 直DLが非対応/失敗 → iOSと同様に別タブ表示（Androidの一部やPCでも安全）
+    if (fallbackNeeded) {
+      _openImageInNewTab(dataUrl, name);
     }
   } catch (e) {
     console.error('summary capture failed:', e);
@@ -726,6 +735,93 @@ async function captureSummaryAsImage(){
     table.style.transform = prev.transform;
     table.style.overflow  = prev.overflow;
   }
+}
+
+// ======== 画像保存ヘルパー（環境判定・フォールバック） ========
+function _isAndroid(){
+  return /android/i.test(navigator.userAgent || '');
+}
+function _isAndroidWebView(){
+  const ua = navigator.userAgent || '';
+  // Chrome WebView 識別子 "wv" など
+  return /; wv\)/i.test(ua) || (/\bVersion\/\d+\.\d+\b/i.test(ua) && /Android/i.test(ua) && /Chrome\/\d+/i.test(ua));
+}
+function _canAnchorDownload(){
+  const a = document.createElement('a');
+  return 'download' in a;
+}
+function _openImageInNewTab(dataUrl, name){
+  const w = window.open('', '_blank');
+  if (w && w.document) {
+    w.document.title = name || 'image';
+    const img = new Image();
+    img.src = dataUrl;
+    img.alt = name || 'image';
+    img.style.maxWidth = '100%';
+    img.style.height = 'auto';
+    w.document.body.style.margin = '0';
+    // ガイド（任意）：長押し保存のヒント
+    const hint = document.createElement('div');
+    hint.style.cssText = 'position:fixed;left:0;right:0;bottom:0;padding:10px 12px;background:#0008;color:#fff;font-size:14px';
+    hint.textContent = '画像を長押しして「画像を保存」を選択してください。';
+    w.document.body.appendChild(img);
+    w.document.body.appendChild(hint);
+  } else {
+    // ポップアップブロック時の最後の手段
+    location.href = dataUrl;
+  }
+}
+
+// ======== 「画像で保存」ガイドポップアップ ========
+let _saveGuideMounted = false;
+function _ensureSaveGuideDOM(){
+  if (_saveGuideMounted) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'summarySaveGuide';
+  wrap.innerHTML = `
+    <div class="ssg-backdrop" data-ssg-close></div>
+    <div class="ssg-dialog" role="dialog" aria-modal="true" aria-labelledby="ssgTitle">
+      <button type="button" class="ssg-close" aria-label="閉じる" data-ssg-close>×</button>
+      <div class="ssg-body">
+        <h3 id="ssgTitle" class="ssg-title">画像で保存する方法：</h3>
+        <ol class="ssg-list">
+          <li><strong>iOS</strong><br>
+            １　以下の「OK」をタップすると、新しいタブで画像が表示されます。<br>
+            ２　新しいタブで画像が表示されたら、長押しして「写真(フォト)へ保存」を選択してください。
+          </li>
+          <li><strong>Android/PC</strong><br>
+            １　以下の「OK」をタップすると、自動でダウンロードが開始されます。<br>
+            ＊　一部のブラウザでは新ウィンドウで画像が表示される場合があります。その場合は、表示された画像をデバイスに保存してください。
+          </li>
+        </ol>
+        <div class="ssg-actions">
+          <button type="button" class="btn btn-primary btn-sm" id="ssgOk">OK</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  // 閉じる（× or 外側クリック）
+  wrap.addEventListener('click', (e)=>{
+    if (e.target.matches('[data-ssg-close]')) _closeSaveGuide();
+  });
+  document.getElementById('ssgOk').addEventListener('click', async ()=>{
+    _closeSaveGuide();
+    await captureSummaryAsImage(); // OKで本処理へ
+  });
+
+  _saveGuideMounted = true;
+}
+function _openSaveGuide(){
+  _ensureSaveGuideDOM();
+  document.body.classList.add('ssg-open');
+  document.getElementById('summarySaveGuide').classList.add('show');
+}
+function _closeSaveGuide(){
+  const host = document.getElementById('summarySaveGuide');
+  if (!host) return;
+  host.classList.remove('show');
+  document.body.classList.remove('ssg-open');
 }
 
 // ==== 限定バッジ：スプライト読み込み ====
@@ -2272,6 +2368,30 @@ style.textContent = `
   document.head.appendChild(style);
   _listLayoutStyleInjected = true;
 }
+
+// ▼ サマリー画像保存ポップアップ＆ボタン非表示CSSを注入
+(function injectSummarySaveCSS(){
+  const style = document.createElement('style');
+  style.textContent = `
+    /* 画像化の瞬間だけボタンを非表示にして写り込み防止（配置崩れしない） */
+    .hide-while-capture { visibility: hidden !important; }
+
+    /* Save Guide Popup */
+    #summarySaveGuide { position:fixed; inset:0; display:block; z-index: 2000; pointer-events:none; }
+    #summarySaveGuide .ssg-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.4); opacity:0; transition:opacity .18s; }
+    #summarySaveGuide .ssg-dialog { position:absolute; left:50%; top:50%; transform:translate(-50%,-42%); width:min(680px,92vw); background:#fff; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,.25); opacity:0; transition:opacity .18s, transform .18s; }
+    #summarySaveGuide .ssg-body { padding:16px 18px 14px; }
+    #summarySaveGuide .ssg-title { font-size:16px; margin:0 0 8px; }
+    #summarySaveGuide .ssg-list { margin:0 0 10px 18px; padding:0; }
+    #summarySaveGuide .ssg-list li { margin:0 0 8px; }
+    #summarySaveGuide .ssg-actions { text-align:right; margin-top:10px; }
+    #summarySaveGuide .ssg-close { position:absolute; right:8px; top:6px; border:0; background:transparent; font-size:20px; line-height:1; padding:6px 8px; }
+    #summarySaveGuide.show { pointer-events:auto; }
+    #summarySaveGuide.show .ssg-backdrop { opacity:1; }
+    #summarySaveGuide.show .ssg-dialog { opacity:1; transform:translate(-50%,-50%); }
+  `;
+  document.head.appendChild(style);
+})();
 
 // ===================== 初期化 =====================
 async function main() {
