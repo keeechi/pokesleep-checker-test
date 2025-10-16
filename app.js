@@ -615,6 +615,49 @@ function updateStickyCloneSizes(table){
 }
 
 // ======== Summary → 画像保存（A1ボタン） ========
+// ---- 追加：Promiseにタイムアウトを付ける
+function withTimeout(p, ms, label='timeout'){
+  return new Promise((resolve, reject)=>{
+    const t = setTimeout(()=>reject(new Error(label)), ms);
+    p.then(v=>{ clearTimeout(t); resolve(v); }, e=>{ clearTimeout(t); reject(e); });
+  });
+}
+
+// ---- 追加：dataURL → Blob（fetchを使わない：iOS安定）
+function dataURLtoBlob(dataUrl){
+  const [header, base64] = dataUrl.split(',');
+  const isBase64 = /;base64$/i.test(header) || /;base64;/.test(header);
+  const mime = (header.match(/data:([^;]+)/i) || [,'image/png'])[1];
+  const binary = isBase64 ? atob(base64) : decodeURIComponent(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i=0;i<len;i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+// ---- 追加：html2canvas フォールバック
+async function renderWithHtml2Canvas(node, scale=2){
+  if (!window.html2canvas){
+    await new Promise((res, rej)=>{
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+      s.onload = ()=>res();
+      s.onerror = ()=>rej(new Error('html2canvas load failed'));
+      document.head.appendChild(s);
+    });
+  }
+  const canvas = await window.html2canvas(node, {
+    scale: scale, backgroundColor: '#ffffff', useCORS: true, allowTaint: true, logging: false,
+    // フィルターやSVGでの相性問題を減らす
+    onclone: (doc)=>{ /* 必要なら一時調整を書く */ },
+  });
+  return canvas.toDataURL('image/png');
+}
+
+// ---- 追加：iOS判定の拡張（iOSのChrome/Firefoxも含める）
+function _isIos(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent || '');
+}
 
 function _getSummaryTableEl(){
   return document.querySelector('#summaryGrid .summary-table');
@@ -674,11 +717,9 @@ function injectSummarySaveControl(){
 async function captureSummaryAsImage(preopenedWin){
   const table = _getSummaryTableEl();
   if (!table) return;
-
   const btn = table.querySelector('#saveSummaryAsImage');
   btn?.classList.add('hide-while-capture');
 
-  // 画像化の瞬間に崩れないよう安全側に
   const prev = { transform: table.style.transform, overflow: table.style.overflow };
   table.style.transform = 'none';
   table.style.overflow = 'visible';
@@ -686,39 +727,34 @@ async function captureSummaryAsImage(preopenedWin){
   try {
     await _waitForAssets(table);
 
-    const pixelRatio = _isIosSafari() ? 2 : Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    const dataUrl = await window.htmlToImage.toPng(table, {
-      pixelRatio,
-      backgroundColor: '#ffffff',
-      cacheBust: true
-    });
+    const pixelRatio = _isIos() ? 2 : Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+
+    // ① html-to-image をタイムアウト付きで試す（iOSで固まる対策）
+    let dataUrl;
+    try {
+      const p = window.htmlToImage?.toPng
+        ? window.htmlToImage.toPng(table, { pixelRatio, backgroundColor:'#ffffff', cacheBust: true })
+        : Promise.reject(new Error('html-to-image not loaded'));
+      dataUrl = await withTimeout(p, 6000, 'toPng-timeout'); // 6秒で切り替え
+    } catch (e) {
+      // ② フォールバック：html2canvas
+      dataUrl = await renderWithHtml2Canvas(table, pixelRatio);
+    }
 
     const d = new Date();
     const name = `summary_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.png`;
 
-    // iOS Safari は download不可 → 新タブで表示（長押し保存）
-    if (_isIosSafari()) {
-      // ★ 先に開いたタブがある想定：location を差し替えるのが最も安定
-      try {
-        // dataURL→Blob→ObjectURL（大きい画像で安定）
-        const blob = await (await fetch(dataUrl)).blob();
-        const obj = URL.createObjectURL(blob);
-        _openImageInNewTab(obj, name, preopenedWin, /*isObjectUrl*/ true);
-        setTimeout(()=>URL.revokeObjectURL(obj), 10000);
-      } catch {
-        _openImageInNewTab(dataUrl, name, preopenedWin, /*isObjectUrl*/ false);
-      }
+    // iOS：新タブに直接 <img> を描く（fetch/replaceを使わない）
+    if (_isIos()){
+      _openImageInNewTab(dataUrl, name, preopenedWin, /*isObjectUrl*/ false);
       return;
     }
 
-    // ここから PC/Android の直ダウンロード
-    // 一部ブラウザ（WebView等）は最初から非対応とみなしてフォールバック
+    // 非iOS：まずは直DLを試す
     let fallbackNeeded = (!_canAnchorDownload() || _isAndroidWebView());
-
     if (!fallbackNeeded) {
       try {
-        // dataURL → Blob → objectURL の方が安定
-        const blob = await (await fetch(dataUrl)).blob();
+        const blob = dataURLtoBlob(dataUrl);
         const objectUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = objectUrl;
@@ -731,10 +767,8 @@ async function captureSummaryAsImage(preopenedWin){
         fallbackNeeded = true;
       }
     }
-
-    // 直DLが非対応/失敗 → iOSと同様に別タブ表示（Androidの一部やPCでも安全）
     if (fallbackNeeded) {
-      _openImageInNewTab(dataUrl, name);
+      _openImageInNewTab(dataUrl, name, preopenedWin, /*isObjectUrl*/ false);
     }
   } catch (e) {
     console.error('summary capture failed:', e);
@@ -759,25 +793,34 @@ function _canAnchorDownload(){
   const a = document.createElement('a');
   return 'download' in a;
 }
+
 function _openImageInNewTab(url, name, preopenedWin, isObjectUrl = false){
-  // 事前に開いたタブがあればそれを優先
   const w = preopenedWin || window.open('about:blank', '_blank');
-  if (!w) {
-    // ポップアップブロック時の最後の手段
-    location.href = url;
+  if (!w) { location.href = url; return; }
+
+  // iOS 系は location.replace を使わず、直接 <img> を書く方が安定
+  if (_isIos()){
+    try { w.document.open(); } catch(_) {}
+    w.document.write(
+      '<!doctype html>' +
+      `<title>${(name||'image')}</title>` +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<body style="margin:0;background:#fff;">' +
+      `<img src="${url}" alt="${(name||'image')}" style="max-width:100%;height:auto;display:block;margin:0 auto;">` +
+      '<div style="position:fixed;left:0;right:0;bottom:0;padding:10px 12px;background:rgba(0,0,0,.5);color:#fff;font-size:14px;text-align:center;">' +
+      '画像を長押しして「写真へ保存」を選択してください。' +
+      '</div>' +
+      '</body>'
+    );
+    try { w.document.close(); } catch(_) {}
     return;
   }
 
-  // iOS Safariは location 差し替えが最も確実
+  // 非iOSは従来ロジックでOK（replace → 失敗時に document.write フォールバック）
   try {
-    // replace() でヒストリを汚さない
     w.location.replace(url);
     return;
-  } catch (_) {
-    // まれに同一タブでの replace が弾かれるケース → DOM 挿入にフォールバック
-  }
-
-  // フォールバック：HTMLを直接書いて <img> で表示
+  } catch (_){}
   try { w.document.open(); } catch(_) {}
   w.document.write(
     '<!doctype html>' +
@@ -785,9 +828,6 @@ function _openImageInNewTab(url, name, preopenedWin, isObjectUrl = false){
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<body style="margin:0">' +
     `<img src="${url}" alt="${(name||'image')}" style="max-width:100%;height:auto;display:block;margin:0 auto;">` +
-    '<div style="position:fixed;left:0;right:0;bottom:0;padding:10px 12px;background:rgba(0,0,0,.5);color:#fff;font-size:14px;text-align:center;">' +
-    '画像を長押しして「画像を保存」を選択してください。' +
-    '</div>' +
     '</body>'
   );
   try { w.document.close(); } catch(_) {}
