@@ -1645,7 +1645,6 @@ tbody.querySelectorAll('button.cell-cal').forEach(btn=>{
 });
   applyStickyHeaders();
   refreshAllSticky();
-}
 
 function ensureRankMiniSummaryContainer() {
   let el = document.getElementById('rankMiniSummary');
