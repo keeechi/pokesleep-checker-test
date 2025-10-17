@@ -2653,398 +2653,425 @@ if ('serviceWorker' in navigator) {
     .catch(console.error);
 }
 
-// ============ 軽量カレンダー（ポップオーバー） ============
-let _calendarHost = null;
-let _lastCalYM = null; // {y,m} — 直前に開いていた月（reloadでリセット）
+// ========= Mini Calendar + Faces Graph (scoped; safe to paste anywhere in global scope) =========
+(()=>{ 'use strict';
 
-function ensureCalendarHost(){
-  if (_calendarHost) return _calendarHost;
-  const el = document.createElement('div');
-  el.id = 'miniCalendar';
-  el.className = 'mini-cal popover bs-popover-auto show';
-  el.style.position = 'absolute';
-  el.style.zIndex = 2000;
-  el.style.display = 'none';
-  el.innerHTML = `
-    <div class="popover-arrow"></div>
-    <div class="popover-body">
-      <div class="cal-head">
-        <button class="btn btn-sm btn-outline-secondary cal-prev">&lt;</button>
-        <div class="cal-title"></div>
-        <button class="btn btn-sm btn-outline-secondary cal-next">&gt;</button>
-      </div>
-      <table class="table table-sm mb-0 cal-grid">
-        <thead><tr>
-          <th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th>土</th><th>日</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="d-flex justify-content-between mt-2">
-        <button class="btn btn-sm btn-outline-secondary cal-today">今日</button>
-        <button class="btn btn-sm btn-outline-danger cal-clear">クリア</button>
-      </div>
-    </div>`;
-  document.body.appendChild(el);
+  // --- 依存（外部で定義済み前提のユーティリティ/定数をフォールバック） ---
+  const fmtYMD      = window.fmtYMD      || (d=>{ const x=new Date(d); const y=x.getFullYear(); const m=String(x.getMonth()+1).padStart(2,'0'); const dd=String(x.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; });
+  const mondayOf    = window.mondayOf    || (ymd=>{ const d=new Date(ymd+'T00:00:00'); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); return d; }); // 月曜はじまり
+  const clampDateStr= window.clampDateStr|| (s=>{ if(!s) return null; const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m?`${m[1]}-${m[2]}-${m[3]}`:null; });
 
-  // ナビ
-  el.querySelector('.cal-prev').addEventListener('click', ()=>switchMonth(-1));
-  el.querySelector('.cal-next').addEventListener('click', ()=>switchMonth(+1));
-  el.querySelector('.cal-today').addEventListener('click', ()=>gotoToday());
-  el.querySelector('.cal-clear').addEventListener('click', ()=>_calendarCommit(null));
-  // 画面外クリックで閉じる
-  document.addEventListener('click', (ev)=>{
-    if (el.style.display === 'none') return;
-    if (!el.contains(ev.target) && !(_calendarAnchor && _calendarAnchor.contains(ev.target))){
-      closeCalendar();
-    }
-  });
+  const RELEASE_DATE = window.RELEASE_DATE || '2023-06-19';
+  const TOTAL_FACES_TIMELINE = window.TOTAL_FACES_TIMELINE || []; // {date:'YYYY-MM-DD', curr:number}
+  const EVENT_MARKERS = window.EVENT_MARKERS || []; // {date:'YYYY-MM-DD', label:'...'}
 
-  injectCalendarCSS();
-  _calendarHost = el;
-  return el;
-}
+  const CHECKABLE_STARS = window.CHECKABLE_STARS || ['☆1','☆2','☆3','☆4'];
+  const RAW_ROWS        = window.RAW_ROWS        || [];
+  const isExcludedFromSummary = window.isExcludedFromSummary || (()=>false);
+  const rowKey          = window.rowKey          || (r => String(r.IconNo || r.No));
+  const loadState       = window.loadState       || (()=>({}));
+  const saveState       = window.saveState       || (s=>localStorage.setItem('psleep-check-v1',JSON.stringify(s)));
 
-function injectCalendarCSS(){
-  if (document.getElementById('miniCalStyle')) return;
-  const st = document.createElement('style');
-  st.id = 'miniCalStyle';
-  st.textContent = `
-  .cell-has-tools { position: relative; }
-  .cell-has-tools .cell-stack { position: relative; display:inline-block; }
-  .cell-has-tools .cell-cal{ position:absolute; left:2px; bottom:2px; padding:0 .25rem; font-size:.72rem; opacity:.85 }
-  .cell-has-tools .cell-cal.has-date{ outline: 2px solid #0d6efd33; border-color:#0d6efd33; }
+  // ============ 軽量カレンダー（ポップオーバー） ============
+  let _calendarHost = null;
+  let _lastCalYM = null; // {y,m} — 直前に開いていた月（reloadでリセット）
+  let _calendarAnchor = null;
+  let _calendarPicked = null;
+  let _calendarCb = null;
 
-  .mini-cal.popover { min-width: 260px; box-shadow: 0 8px 22px rgba(0,0,0,.15); }
-  .mini-cal .cal-head{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.25rem; }
-  .mini-cal .cal-title{ font-weight:600; }
-  .mini-cal .cal-grid th, .mini-cal .cal-grid td{ text-align:center; vertical-align:middle; width: 14.28%; }
-  .mini-cal .cal-grid td button{ width: 100%; border:0; background:transparent; padding:.25rem 0; border-radius:.5rem; }
-  .mini-cal .cal-grid td button:hover{ background:#f1f3f5; }
-  .mini-cal .cal-grid td button.is-today{ outline:2px solid #0d6efd55; }
-  .mini-cal .cal-grid td button.is-picked{ background:#0d6efd; color:#fff; }
-  `;
-  document.head.appendChild(st);
-}
-
-let _calendarAnchor = null;
-let _calendarPicked = null;
-let _calendarCb = null;
-function openCalendarPopover(anchorBtn, initialYmd, onPickCb){
-  ensureCalendarHost();
-  _calendarAnchor = anchorBtn;
-  _calendarCb = onPickCb;
-  _calendarPicked = clampDateStr(initialYmd);
-
-  // 表示月：直前のYM or 初期値 or 今日
-  let base = _lastCalYM 
-    ? new Date(_lastCalYM.y, _lastCalYM.m, 1)
-    : (_calendarPicked ? new Date(_calendarPicked + 'T00:00:00') : new Date());
-  renderCalendar(base.getFullYear(), base.getMonth());
-
-  // 位置あわせ
-  const r = anchorBtn.getBoundingClientRect();
-  const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-  const scrollY = window.pageYOffset || document.documentElement.scrollTop;
-  _calendarHost.style.left = (r.left + scrollX) + 'px';
-  _calendarHost.style.top  = (r.bottom + scrollY + 6) + 'px';
-  _calendarHost.style.display = 'block';
-}
-
-function closeCalendar(){
-  if (_calendarHost) _calendarHost.style.display = 'none';
-  _calendarAnchor = null; _calendarCb = null;
-}
-
-function switchMonth(delta){
-  const t = _calendarHost.querySelector('.cal-title').dataset.ymd; // YYYY-MM-01
-  const d = new Date(t + 'T00:00:00');
-  d.setMonth(d.getMonth() + delta);
-  renderCalendar(d.getFullYear(), d.getMonth());
-}
-function gotoToday(){
-  const d = new Date(); renderCalendar(d.getFullYear(), d.getMonth());
-}
-
-function renderCalendar(y, m){ // m: 0-11
-  _lastCalYM = { y, m };
-  const host = _calendarHost;
-  const title = host.querySelector('.cal-title');
-  const tbody = host.querySelector('tbody');
-  const first = new Date(y, m, 1);
-  const firstMon = mondayOf(fmtYMD(first));
-  title.textContent = `${y}/${String(m+1).padStart(2,'0')}`;
-  title.dataset.ymd = `${y}-${String(m+1).padStart(2,'0')}-01`;
-
-  // 6週間分作る
-  let html = '';
-  let d = new Date(firstMon);
-  for (let wk=0; wk<6; wk++){
-    html += '<tr>';
-    for (let i=0; i<7; i++){
-      const inMonth = d.getMonth() === m;
-      const ymd = fmtYMD(d);
-      const isToday = fmtYMD(new Date()) === ymd;
-      const isPicked = _calendarPicked === ymd;
-      html += `<td>${ inMonth 
-        ? `<button type="button" data-ymd="${ymd}" class="${isToday?'is-today':''} ${isPicked?'is-picked':''}">${d.getDate()}</button>`
-        : `<span class="text-muted" style="opacity:.35">${d.getDate()}</span>` }</td>`;
-      d.setDate(d.getDate()+1);
-    }
-    html += '</tr>';
-  }
-  tbody.innerHTML = html;
-  tbody.querySelectorAll('button[data-ymd]').forEach(b=>{
-    b.addEventListener('click', ()=>_calendarCommit(b.dataset.ymd));
-  });
-}
-function _calendarCommit(ymd){
-  _calendarPicked = clampDateStr(ymd);
-  try { if (_calendarCb) _calendarCb(_calendarPicked); } finally { closeCalendar(); }
-}
-
-// ============ 寝顔グラフ（モーダル＋Chart.js動的読込） ============
-let _graphModalEl = null, _graphModal = null, _chart = null;
-
-function ensureGraphModal(){
-  if (_graphModalEl) return { el:_graphModalEl, modal:_graphModal };
-  const el = document.createElement('div');
-  el.className = 'modal fade';
-  el.id = 'facesGraphModal';
-  el.tabIndex = -1;
-  el.innerHTML = `
-    <div class="modal-dialog modal-dialog-centered modal-xl">
-      <div class="modal-content">
-        <div class="modal-header py-2">
-          <h5 class="modal-title">寝顔数グラフ</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+  function ensureCalendarHost(){
+    if (_calendarHost) return _calendarHost;
+    const el = document.createElement('div');
+    el.id = 'miniCalendar';
+    el.className = 'mini-cal popover bs-popover-auto show';
+    el.style.position = 'absolute';
+    el.style.zIndex = 2000;
+    el.style.display = 'none';
+    el.innerHTML = `
+      <div class="popover-arrow"></div>
+      <div class="popover-body">
+        <div class="cal-head">
+          <button class="btn btn-sm btn-outline-secondary cal-prev">&lt;</button>
+          <div class="cal-title"></div>
+          <button class="btn btn-sm btn-outline-secondary cal-next">&gt;</button>
         </div>
-        <div class="modal-body">
-          <div class="d-flex flex-wrap gap-3 mb-2">
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="xstart" id="xRelease" value="release" checked>
-              <label class="form-check-label" for="xRelease">リリース以降</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="xstart" id="xMyPlay" value="play">
-              <label class="form-check-label" for="xMyPlay">プレイ開始以降</label>
-            </div>
-
-            <div class="vr"></div>
-
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="ytype" id="yGotOnly" value="got" checked>
-              <label class="form-check-label" for="yGotOnly">取得のみ</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="ytype" id="yBoth" value="both">
-              <label class="form-check-label" for="yBoth">実装寝顔＋取得</label>
-            </div>
-
-            <div class="vr"></div>
-
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="evt" id="evtOn" value="on" checked>
-              <label class="form-check-label" for="evtOn">イベント表示</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="evt" id="evtOff" value="off">
-              <label class="form-check-label" for="evtOff">イベント非表示</label>
-            </div>
-
-            <div class="ms-auto">
-              <label class="form-label me-1 mb-0">プレイ開始日</label>
-              <input type="date" id="myPlayStart" class="form-control form-control-sm" style="display:inline-block; width:auto;">
-            </div>
-          </div>
-          <div class="ratio ratio-16x9">
-            <canvas id="facesGraphCanvas"></canvas>
-          </div>
+        <table class="table table-sm mb-0 cal-grid">
+          <thead><tr>
+            <th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th>土</th><th>日</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="d-flex justify-content-between mt-2">
+          <button class="btn btn-sm btn-outline-secondary cal-today">今日</button>
+          <button class="btn btn-sm btn-outline-danger cal-clear">クリア</button>
         </div>
-      </div>
-    </div>`;
-  document.body.appendChild(el);
-  _graphModalEl = el;
-  _graphModal = new bootstrap.Modal(el, { backdrop:true, keyboard:true });
+      </div>`;
+    document.body.appendChild(el);
 
-  // ラジオ＆日付変更で再描画
-  el.querySelectorAll('input[name="xstart"], input[name="ytype"], input[name="evt"]').forEach(i=>{
-    i.addEventListener('change', ()=>drawFacesGraph());
-  });
-  el.querySelector('#myPlayStart').addEventListener('change', ()=>{
-    const s = loadState();
-    const v = clampDateStr(el.querySelector('#myPlayStart').value);
-    if (!s.meta) s.meta = {};
-    s.meta.playStart = v || null;
-    saveState(s);
-    drawFacesGraph();
-  });
-
-  // ちょいCSS
-  const st = document.createElement('style');
-  st.textContent = `.vr{ width:1px; background:rgba(0,0,0,.1); margin: 0 .25rem; }`;
-  document.head.appendChild(st);
-
-  return { el:_graphModalEl, modal:_graphModal };
-}
-
-function ensureChartJsLoaded(){
-  if (window.Chart) return Promise.resolve();
-  return new Promise((resolve)=>{
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js';
-    s.onload = resolve;
-    s.onerror = resolve;
-    document.head.appendChild(s);
-  });
-}
-
-function openFacesGraph(){
-  const { el, modal } = ensureGraphModal();
-  // 初期値セット
-  const s = loadState();
-  el.querySelector('#myPlayStart').value = s.meta?.playStart || '';
-  // デフォルト：リリース開始、取得のみ、イベント表示
-  el.querySelector('#xRelease').checked = true;
-  el.querySelector('#yGotOnly').checked = true;
-  el.querySelector('#evtOn').checked = true;
-
-  ensureChartJsLoaded().then(()=>{
-    drawFacesGraph();
-    modal.show();
-  });
-}
-
-function drawFacesGraph(){
-  const { el } = ensureGraphModal();
-  const cnv = el.querySelector('#facesGraphCanvas');
-  const ctx = cnv.getContext('2d');
-  const s = loadState();
-
-  const xStartMode = el.querySelector('input[name="xstart"]:checked').value; // 'release' | 'play'
-  const yType = el.querySelector('input[name="ytype"]:checked').value;       // 'got' | 'both'
-  const evt = el.querySelector('input[name="evt"]:checked').value;           // 'on' | 'off'
-  const playStart = clampDateStr(s.meta?.playStart);
-
-  // ① 横軸範囲（週/月曜）
-  const minStart = (xStartMode === 'play' && playStart) ? fmtYMD(mondayOf(playStart)) : fmtYMD(mondayOf(RELEASE_DATE));
-  const today = fmtYMD(new Date());
-  const labels = [];
-  { let d = mondayOf(minStart); const end = mondayOf(today); 
-    for (; d<=end; d.setDate(d.getDate()+7)) labels.push(fmtYMD(d)); }
-
-  // ② 取得データ（除外ルール：サマリーの“全体”準拠＝ダークライ等は除外）
-  const gotDates = [];
-  for (const row of RAW_ROWS){
-    if (isExcludedFromSummary(row, 'all')) continue; // イベント寝顔は含める、ダークライのみ除外
-    const k = rowKey(row), star = row.DisplayRarity;
-    if (!CHECKABLE_STARS.includes(star)) continue;
-    const ymd = getAcquired(s, k, star);
-    if (!ymd) continue;
-    // 横軸min以降のみ採用（minより前はmin週に含めても良いが、ここでは切り捨て）
-    if (ymd >= minStart && ymd <= today) gotDates.push(ymd);
-  }
-  gotDates.sort();
-
-  // 週ごと累積
-  const gotCumByWeek = labels.map(()=>0);
-  let acc = 0;
-  let j = 0;
-  for (let i=0; i<labels.length; i++){
-    const weekStart = labels[i];
-    const weekEnd = fmtYMD(new Date(new Date(weekStart).getTime() + 6*86400000));
-    while (j < gotDates.length && gotDates[j] <= weekEnd){ acc++; j++; }
-    gotCumByWeek[i] = acc;
-  }
-
-  // ③ 実装寝顔数（折れ線用）— 週端での“その時点の curr ”に補間（階段状でOK）
-  const totalByWeek = labels.map(()=>null);
-  let k=0;
-  for (let i=0; i<labels.length; i++){
-    const weekStart = labels[i];
-    while (k < TOTAL_FACES_TIMELINE.length && TOTAL_FACES_TIMELINE[k].date <= weekStart) k++;
-    const idx = Math.max(0, k-1);
-    totalByWeek[i] = TOTAL_FACES_TIMELINE[Math.min(idx, TOTAL_FACES_TIMELINE.length-1)].curr;
-  }
-
-  // ④ イベントマーカー
-  const evtPoints = (evt === 'on') ? EVENT_MARKERS.filter(e => e.date >= labels[0] && e.date <= today) : [];
-
-  // 描画
-  if (_chart){ _chart.destroy(); _chart = null; }
-  const dataSets = [];
-
-  if (yType === 'both'){
-    dataSets.push({
-      type: 'line',
-      label: '実装寝顔数（時点）',
-      data: totalByWeek,
-      borderWidth: 2,
-      tension: 0,
-      yAxisID: 'y',
-    });
-    dataSets.push({
-      type: 'bar',
-      label: '自分の取得（累積）',
-      data: gotCumByWeek,
-      yAxisID: 'y',
-    });
-  } else {
-    dataSets.push({
-      type: 'bar',
-      label: '自分の取得（累積）',
-      data: gotCumByWeek,
-      yAxisID: 'y',
-    });
-  }
-
-  _chart = new Chart(ctx, {
-    data: { labels, datasets: dataSets },
-    options: {
-      responsive: true,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { position: 'top' },
-        tooltip: { callbacks: { title:(items)=>items?.[0]?.label?.replaceAll('-', '/') } }
-      },
-      scales: {
-        x: {
-          ticks: {
-            callback: (v, i)=> {
-              // 月初の週だけ表示（混み合い防止）
-              const d = new Date(labels[i] + 'T00:00:00');
-              return d.getDate() <= 7 ? `${d.getFullYear()}/${d.getMonth()+1}` : '';
-            }
-          },
-          grid: { display: false }
-        },
-        y: { beginAtZero: true }
+    // ナビ
+    el.querySelector('.cal-prev').addEventListener('click', ()=>switchMonth(-1));
+    el.querySelector('.cal-next').addEventListener('click', ()=>switchMonth(+1));
+    el.querySelector('.cal-today').addEventListener('click', ()=>gotoToday());
+    el.querySelector('.cal-clear').addEventListener('click', ()=>_calendarCommit(null));
+    // 画面外クリックで閉じる
+    document.addEventListener('click', (ev)=>{
+      if (el.style.display === 'none') return;
+      if (!el.contains(ev.target) && !(_calendarAnchor && _calendarAnchor.contains(ev.target))){
+        closeCalendar();
       }
-    }
-  });
+    }, true);
 
-  // イベント線を後描き（簡易）
-  if (evtPoints.length){
-    const chartArea = _chart.chartArea;
-    const xScale = _chart.scales.x;
-    const yScale = _chart.scales.y;
-    const ctx2 = _chart.ctx;
-    ctx2.save();
-    ctx2.strokeStyle = 'rgba(220,53,69,.6)';
-    ctx2.fillStyle = 'rgba(220,53,69,.9)';
-    ctx2.lineWidth = 1;
-    evtPoints.forEach(ev=>{
-      const idx = labels.findIndex(l => l === fmtYMD(mondayOf(ev.date)));
-      if (idx < 0) return;
-      const x = xScale.getPixelForValue(idx);
-      ctx2.beginPath();
-      ctx2.moveTo(x, chartArea.top);
-      ctx2.lineTo(x, chartArea.bottom);
-      ctx2.stroke();
-      // ラベル（上部）
-      ctx2.font = '10px system-ui, -apple-system, Segoe UI, Roboto';
-      ctx2.textAlign = 'left';
-      ctx2.fillText(ev.label || '', x+4, chartArea.top+10);
-    });
-    ctx2.restore();
+    injectCalendarCSS();
+    _calendarHost = el;
+    return el;
   }
-}
+
+  function injectCalendarCSS(){
+    if (document.getElementById('miniCalStyle')) return;
+    const st = document.createElement('style');
+    st.id = 'miniCalStyle';
+    st.textContent = `
+    .cell-has-tools { position: relative; }
+    .cell-has-tools .cell-stack { position: relative; display:inline-block; }
+    .cell-has-tools .cell-cal{ position:absolute; left:2px; bottom:2px; padding:0 .25rem; font-size:.72rem; opacity:.85 }
+    .cell-has-tools .cell-cal.has-date{ outline: 2px solid #0d6efd33; border-color:#0d6efd33; }
+
+    .mini-cal.popover { min-width: 260px; box-shadow: 0 8px 22px rgba(0,0,0,.15); }
+    .mini-cal .cal-head{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.25rem; }
+    .mini-cal .cal-title{ font-weight:600; }
+    .mini-cal .cal-grid th, .mini-cal .cal-grid td{ text-align:center; vertical-align:middle; width: 14.28%; }
+    .mini-cal .cal-grid td button{ width: 100%; border:0; background:transparent; padding:.25rem 0; border-radius:.5rem; }
+    .mini-cal .cal-grid td button:hover{ background:#f1f3f5; }
+    .mini-cal .cal-grid td button.is-today{ outline:2px solid #0d6efd55; }
+    .mini-cal .cal-grid td button.is-picked{ background:#0d6efd; color:#fff; }
+    `;
+    document.head.appendChild(st);
+  }
+
+  function openCalendarPopover(anchorBtn, initialYmd, onPickCb){
+    ensureCalendarHost();
+    _calendarAnchor = anchorBtn;
+    _calendarCb = onPickCb;
+    _calendarPicked = clampDateStr(initialYmd);
+
+    // 表示月：直前のYM or 初期値 or 今日
+    let base = _lastCalYM 
+      ? new Date(_lastCalYM.y, _lastCalYM.m, 1)
+      : (_calendarPicked ? new Date(_calendarPicked + 'T00:00:00') : new Date());
+    renderCalendar(base.getFullYear(), base.getMonth());
+
+    // 位置あわせ
+    const r = anchorBtn.getBoundingClientRect();
+    const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+    const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+    _calendarHost.style.left = (r.left + scrollX) + 'px';
+    _calendarHost.style.top  = (r.bottom + scrollY + 6) + 'px';
+    _calendarHost.style.display = 'block';
+  }
+  function closeCalendar(){
+    if (_calendarHost) _calendarHost.style.display = 'none';
+    _calendarAnchor = null; _calendarCb = null;
+  }
+  function switchMonth(delta){
+    const t = _calendarHost.querySelector('.cal-title').dataset.ymd; // YYYY-MM-01
+    const d = new Date(t + 'T00:00:00');
+    d.setMonth(d.getMonth() + delta);
+    renderCalendar(d.getFullYear(), d.getMonth());
+  }
+  function gotoToday(){
+    const d = new Date(); renderCalendar(d.getFullYear(), d.getMonth());
+  }
+
+  function renderCalendar(y, m){ // m: 0-11
+    _lastCalYM = { y, m };
+    const host = _calendarHost;
+    const title = host.querySelector('.cal-title');
+    const tbody = host.querySelector('tbody');
+    const first = new Date(y, m, 1);
+    const firstMon = mondayOf(fmtYMD(first));
+    title.textContent = `${y}/${String(m+1).padStart(2,'0')}`;
+    title.dataset.ymd = `${y}-${String(m+1).padStart(2,'0')}-01`;
+
+    // 6週間分作る
+    let html = '';
+    let d = new Date(firstMon);
+    for (let wk=0; wk<6; wk++){
+      html += '<tr>';
+      for (let i=0; i<7; i++){
+        const inMonth = d.getMonth() === m;
+        const ymd = fmtYMD(d);
+        const isToday = fmtYMD(new Date()) === ymd;
+        const isPicked = _calendarPicked === ymd;
+        html += `<td>${ inMonth 
+          ? `<button type="button" data-ymd="${ymd}" class="${isToday?'is-today':''} ${isPicked?'is-picked':''}">${d.getDate()}</button>`
+          : `<span class="text-muted" style="opacity:.35">${d.getDate()}</span>` }</td>`;
+        d.setDate(d.getDate()+1);
+      }
+      html += '</tr>';
+    }
+    tbody.innerHTML = html;
+    tbody.querySelectorAll('button[data-ymd]').forEach(b=>{
+      b.addEventListener('click', ()=>_calendarCommit(b.dataset.ymd));
+    });
+  }
+  function _calendarCommit(ymd){
+    _calendarPicked = clampDateStr(ymd);
+    try { if (_calendarCb) _calendarCb(_calendarPicked); } finally { closeCalendar(); }
+  }
+
+  // ============ 寝顔グラフ（モーダル＋Chart.js動的読込） ============
+  let _graphModalEl = null, _graphModal = null, _chart = null;
+
+  function ensureGraphModal(){
+    if (_graphModalEl) return { el:_graphModalEl, modal:_graphModal };
+    const el = document.createElement('div');
+    el.className = 'modal fade';
+    el.id = 'facesGraphModal';
+    el.tabIndex = -1;
+    el.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+          <div class="modal-header py-2">
+            <h5 class="modal-title">寝顔数グラフ</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+          </div>
+          <div class="modal-body">
+            <div class="d-flex flex-wrap gap-3 mb-2">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="xstart" id="xRelease" value="release" checked>
+                <label class="form-check-label" for="xRelease">リリース以降</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="xstart" id="xMyPlay" value="play">
+                <label class="form-check-label" for="xMyPlay">プレイ開始以降</label>
+              </div>
+
+              <div class="vr"></div>
+
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="ytype" id="yGotOnly" value="got" checked>
+                <label class="form-check-label" for="yGotOnly">取得のみ</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="ytype" id="yBoth" value="both">
+                <label class="form-check-label" for="yBoth">実装寝顔＋取得</label>
+              </div>
+
+              <div class="vr"></div>
+
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="evt" id="evtOn" value="on" checked>
+                <label class="form-check-label" for="evtOn">イベント表示</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="evt" id="evtOff" value="off">
+                <label class="form-check-label" for="evtOff">イベント非表示</label>
+              </div>
+
+              <div class="ms-auto">
+                <label class="form-label me-1 mb-0">プレイ開始日</label>
+                <input type="date" id="myPlayStart" class="form-control form-control-sm" style="display:inline-block; width:auto;">
+              </div>
+            </div>
+            <div class="ratio ratio-16x9">
+              <canvas id="facesGraphCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+    _graphModalEl = el;
+    _graphModal = new bootstrap.Modal(el, { backdrop:true, keyboard:true });
+
+    // ラジオ＆日付変更で再描画
+    el.querySelectorAll('input[name="xstart"], input[name="ytype"], input[name="evt"]').forEach(i=>{
+      i.addEventListener('change', ()=>drawFacesGraph());
+    });
+    el.querySelector('#myPlayStart').addEventListener('change', ()=>{
+      const s = loadState();
+      const v = clampDateStr(el.querySelector('#myPlayStart').value);
+      if (!s.meta) s.meta = {};
+      s.meta.playStart = v || null;
+      saveState(s);
+      drawFacesGraph();
+    });
+
+    // ちょいCSS
+    const st = document.createElement('style');
+    st.textContent = `.vr{ width:1px; background:rgba(0,0,0,.1); margin: 0 .25rem; }`;
+    document.head.appendChild(st);
+
+    return { el:_graphModalEl, modal:_graphModal };
+  }
+
+  function ensureChartJsLoaded(){
+    if (window.Chart) return Promise.resolve();
+    return new Promise((resolve)=>{
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js';
+      s.onload = resolve;
+      s.onerror = resolve;
+      document.head.appendChild(s);
+    });
+  }
+
+  function openFacesGraph(){
+    const { el, modal } = ensureGraphModal();
+    // 初期値セット
+    const s = loadState();
+    el.querySelector('#myPlayStart').value = s.meta?.playStart || '';
+    // デフォルト：リリース開始、取得のみ、イベント表示
+    el.querySelector('#xRelease').checked = true;
+    el.querySelector('#yGotOnly').checked = true;
+    el.querySelector('#evtOn').checked = true;
+
+    ensureChartJsLoaded().then(()=>{
+      drawFacesGraph();
+      modal.show();
+    });
+  }
+
+  function drawFacesGraph(){
+    const { el } = ensureGraphModal();
+    const cnv = el.querySelector('#facesGraphCanvas');
+    const ctx = cnv.getContext('2d');
+    const s = loadState();
+
+    const xStartMode = el.querySelector('input[name="xstart"]:checked').value; // 'release' | 'play'
+    const yType = el.querySelector('input[name="ytype"]:checked').value;       // 'got' | 'both'
+    const evt = el.querySelector('input[name="evt"]:checked').value;           // 'on' | 'off'
+    const playStart = clampDateStr(s.meta?.playStart);
+
+    // ① 横軸範囲（週/月曜）
+    const minStart = (xStartMode === 'play' && playStart) ? fmtYMD(mondayOf(playStart)) : fmtYMD(mondayOf(RELEASE_DATE));
+    const today = fmtYMD(new Date());
+    const labels = [];
+    { let d = mondayOf(minStart); const end = mondayOf(today); 
+      for (; d<=end; d.setDate(d.getDate()+7)) labels.push(fmtYMD(d)); }
+
+    // ② 取得データ（除外ルール：サマリーの“全体”準拠＝ダークライ等は除外）
+    const gotDates = [];
+    for (const row of RAW_ROWS){
+      if (isExcludedFromSummary(row, 'all')) continue; // イベント寝顔は含める、ダークライのみ除外
+      const k = rowKey(row), star = row.DisplayRarity;
+      if (!CHECKABLE_STARS.includes(star)) continue;
+      const ymd = (s.checked?.[k]?.[star]?.acq) || (s.acquired?.[k]?.[star]) || null; // 後方互換がある場合の拾い方（なければ getAcquired を使う側で統一）
+      const val = clampDateStr(ymd);
+      if (!val) continue;
+      if (val >= minStart && val <= today) gotDates.push(val);
+    }
+    gotDates.sort();
+
+    // 週ごと累積
+    const gotCumByWeek = labels.map(()=>0);
+    let acc = 0;
+    let j = 0;
+    for (let i=0; i<labels.length; i++){
+      const weekStart = labels[i];
+      const weekEnd = fmtYMD(new Date(new Date(weekStart).getTime() + 6*86400000));
+      while (j < gotDates.length && gotDates[j] <= weekEnd){ acc++; j++; }
+      gotCumByWeek[i] = acc;
+    }
+
+    // ③ 実装寝顔数（折れ線用）
+    const totalByWeek = labels.map(()=>null);
+    let k=0;
+    for (let i=0; i<labels.length; i++){
+      const weekStart = labels[i];
+      while (k < TOTAL_FACES_TIMELINE.length && TOTAL_FACES_TIMELINE[k].date <= weekStart) k++;
+      const idx = Math.max(0, k-1);
+      totalByWeek[i] = TOTAL_FACES_TIMELINE[Math.min(idx, TOTAL_FACES_TIMELINE.length-1)]?.curr ?? null;
+    }
+
+    // ④ イベントマーカー
+    const evtPoints = (evt === 'on') ? EVENT_MARKERS.filter(e => e.date >= labels[0] && e.date <= today) : [];
+
+    // 描画
+    if (window.Chart && window.Chart.getChart) {
+      const old = window.Chart.getChart(cnv);
+      if (old) old.destroy();
+    }
+    if (_chart){ _chart.destroy?.(); _chart = null; }
+
+    const dataSets = [];
+    if (yType === 'both'){
+      dataSets.push({
+        type: 'line',
+        label: '実装寝顔数（時点）',
+        data: totalByWeek,
+        borderWidth: 2,
+        tension: 0,
+        yAxisID: 'y',
+      });
+      dataSets.push({
+        type: 'bar',
+        label: '自分の取得（累積）',
+        data: gotCumByWeek,
+        yAxisID: 'y',
+      });
+    } else {
+      dataSets.push({
+        type: 'bar',
+        label: '自分の取得（累積）',
+        data: gotCumByWeek,
+        yAxisID: 'y',
+      });
+    }
+
+    _chart = new Chart(ctx, {
+      data: { labels, datasets: dataSets },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: { callbacks: { title:(items)=>items?.[0]?.label?.replaceAll('-', '/') } }
+        },
+        scales: {
+          x: {
+            ticks: {
+              callback: (v, i)=> {
+                // 月初の週だけ表示（混み合い防止）
+                const d = new Date(labels[i] + 'T00:00:00');
+                return d.getDate() <= 7 ? `${d.getFullYear()}/${d.getMonth()+1}` : '';
+              }
+            },
+            grid: { display: false }
+          },
+          y: { beginAtZero: true }
+        }
+      }
+    });
+
+    // イベント線を後描き（簡易）
+    if (evtPoints.length){
+      const chartArea = _chart.chartArea;
+      const xScale = _chart.scales.x;
+      const ctx2 = _chart.ctx;
+      ctx2.save();
+      ctx2.strokeStyle = 'rgba(220,53,69,.6)';
+      ctx2.fillStyle = 'rgba(220,53,69,.9)';
+      ctx2.lineWidth = 1;
+      evtPoints.forEach(ev=>{
+        const idx = labels.findIndex(l => l === fmtYMD(mondayOf(ev.date)));
+        if (idx < 0) return;
+        const x = xScale.getPixelForValue(idx);
+        ctx2.beginPath();
+        ctx2.moveTo(x, chartArea.top);
+        ctx2.lineTo(x, chartArea.bottom);
+        ctx2.stroke();
+        // ラベル（上部）
+        ctx2.font = '10px system-ui, -apple-system, Segoe UI, Roboto';
+        ctx2.textAlign = 'left';
+        ctx2.fillText(ev.label || '', x+4, chartArea.top+10);
+      });
+      ctx2.restore();
+    }
+  }
+
+  // --- 外部から使う関数を公開 ---
+  window.openCalendarPopover = openCalendarPopover;
+  window.closeCalendar = closeCalendar;
+  window.openFacesGraph = openFacesGraph;
+
+})(); // <== ここで確実に閉じる（末尾SyntaxErrorを防止）
