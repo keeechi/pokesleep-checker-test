@@ -3048,3 +3048,11 @@ document.addEventListener('click', function (e) {
   e.stopPropagation();
   openFacesGraph();
 }, true);
+
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('#tab-faces-graph');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  openFacesGraph();
+}, true);
