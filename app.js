@@ -2551,15 +2551,6 @@ function afterRenderRankSearch() {
   });
 })();
 
-// 「寝顔グラフ」タブをクリックしたらモーダルを開く
-document.addEventListener('click', function (e) {
-  const btn = e.target.closest('#tab-faces-graph');
-  if (!btn) return;
-  e.preventDefault();
-  e.stopPropagation();
-  openFacesGraph();
-}, true);
-
 // ==== PWA Install Banner (deferred prompt) ====
 
 // バナー要素
@@ -2645,7 +2636,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ========= Mini Calendar + Faces Graph (scoped; safe to paste anywhere in global scope) =========
-(()=>{ 'use strict';
+;(()=>{ 'use strict';
 
   // --- 依存（外部で定義済み前提のユーティリティ/定数をフォールバック） ---
   const fmtYMD      = window.fmtYMD      || (d=>{ const x=new Date(d); const y=x.getFullYear(); const m=String(x.getMonth()+1).padStart(2,'0'); const dd=String(x.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; });
