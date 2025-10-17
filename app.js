@@ -1539,112 +1539,116 @@ if (getStatus !== 'すべて') {
   });
 }
 
-  FIELD_KEYS.forEach(field=>{
-    const tbody = document.querySelector(`#fieldTabsContent tbody[data-field="${field}"]`);
-    const rows = [];
-    for (const ent of baseEntries) {
-      const appearAny = ent.rows.some(r => getFieldRankNum(r, field));
-      if (!appearAny) continue;
+// === フィールド別テーブルの描画（FIELD_KEYS.forEach ～ ループ外の仕上げまで：完全置換ブロック） ===
+FIELD_KEYS.forEach(field => {
+  const tbody = document.querySelector(`#fieldTabsContent tbody[data-field="${field}"]`);
+  const rows = [];
 
-      const key = entKey(ent); // ★ 形態ごとのキー
+  for (const ent of baseEntries) {
+    const appearAny = ent.rows.some(r => getFieldRankNum(r, field));
+    if (!appearAny) continue;
 
-const cells = CHECKABLE_STARS.map(star=>{
-  const hasRow = ent.rows.find(r => r.DisplayRarity === star);
-  if (!hasRow) return `<td class="text-center cell-absent">—</td>`;
-  const rankNum = getFieldRankNum(hasRow, field);
-  if (!rankNum) return `<td class="text-center cell-disabled">ー</td>`;
+    const key = entKey(ent);
 
-  const checked = getChecked(state, key, star);
-  const limitedField = getEntStarLimitedField(ent, star);
-  const badge = limitedField ? renderLimitedBadgeByField(limitedField) : '';
-  const gotDate = getAcquired(state, key, star);
-  const dateMark = gotDate ? ` title="${gotDate}"` : '';
+    const cells = CHECKABLE_STARS.map(star => {
+      const hasRow = ent.rows.find(r => r.DisplayRarity === star);
+      if (!hasRow) return `<td class="text-center cell-absent">—</td>`;
+      const rankNum = getFieldRankNum(hasRow, field);
+      if (!rankNum) return `<td class="text-center cell-disabled">ー</td>`;
 
-  return `
-    <td class="text-center toggle-cell cell-has-tools ${checked ? 'cell-checked' : ''} ${badge ? 'badge-host' : ''}"
-        data-key="${key}" data-star="${star}">
-      ${renderRankChip(rankNum)}
-      ${badge}
-      <button type="button" class="btn btn-light btn-xxs cell-cal" data-key="${key}" data-star="${star}"${dateMark} aria-label="入手日"><span>📅</span></button>
-    </td>`;
-}).join('');
+      const checked = getChecked(state, key, star);
+      const limitedField = getEntStarLimitedField(ent, star);
+      const badge = limitedField ? renderLimitedBadgeByField(limitedField) : '';
+      const gotDate = getAcquired(state, key, star);
+      const dateMark = gotDate ? ` title="${gotDate}"` : '';
 
-// ★ 行はここで push（map の外）
-rows.push(`
-  <tr>
-    <td class="byfield-name-cell text-center align-middle">
-      <div class="pf-wrap">
-        <div class="byfield-icon position-relative">
-          ${renderPokemonIconById(ent.iconNo || getIconKeyFromNo(ent.no), ICON_SIZE_FIELD)}
-          <button type="button" class="btn btn-light btn-xxs icon-more"
-                  data-entkey="${key}" aria-label="出現フィールド">▼</button>
-        </div>
-        <div class="pf-text">
-          <div class="pf-no text-muted">${ent.no}</div>
-          <div class="pf-name">${escapeHtml(ent.name)}</div>
-        </div>
-      </div>
-    </td>
-    <td class="type-cell text-center">${firstStyleKey(ent) || '-'}</td>
-    ${cells}
-  </tr>`);
+      return `
+        <td class="text-center toggle-cell cell-has-tools ${checked ? 'cell-checked' : ''} ${badge ? 'badge-host' : ''}"
+            data-key="${key}" data-star="${star}">
+          ${renderRankChip(rankNum)}
+          ${badge}
+          <button type="button" class="btn btn-light btn-xxs cell-cal" data-key="${key}" data-star="${star}"${dateMark} aria-label="入手日"><span>📅</span></button>
+        </td>`;
+    }).join('');
+
+    rows.push(`
+      <tr>
+        <td class="byfield-name-cell text-center align-middle">
+          <div class="pf-wrap">
+            <div class="byfield-icon position-relative">
+              ${renderPokemonIconById(ent.iconNo || getIconKeyFromNo(ent.no), ICON_SIZE_FIELD)}
+              <button type="button" class="btn btn-light btn-xxs icon-more"
+                      data-entkey="${key}" aria-label="出現フィールド">▼</button>
+            </div>
+            <div class="pf-text">
+              <div class="pf-no text-muted">${ent.no}</div>
+              <div class="pf-name">${escapeHtml(ent.name)}</div>
+            </div>
+          </div>
+        </td>
+        <td class="text-center">${firstStyleKey(ent) || '-'}</td>
+        ${cells}
+      </tr>`);
   }
-    
+
   tbody.innerHTML = rows.join('');
 
-// ★ セル全体クリックで ON/OFF（data-key を使用）
-tbody.querySelectorAll('td.toggle-cell').forEach(td=>{
-  td.addEventListener('click', ()=>{
-    const key  = td.dataset.key;
-    const star = td.dataset.star;
-    const now  = getChecked(state, key, star);
-    setChecked(state, key, star, !now);
-    td.classList.toggle('cell-checked', !now);
-    syncOtherViews(key, star, !now);
-    renderSummary(state);
-    renderRankSearch(state);
-    updateAmberPopup(state);
+  // ★ セル全体クリックで ON/OFF（data-key を使用）
+  tbody.querySelectorAll('td.toggle-cell').forEach(td=>{
+    td.addEventListener('click', ()=>{
+      const key  = td.dataset.key;
+      const star = td.dataset.star;
+      const now  = getChecked(state, key, star);
+      setChecked(state, key, star, !now);
+      td.classList.toggle('cell-checked', !now);
+      syncOtherViews(key, star, !now);
+      renderSummary(state);
+      renderRankSearch(state);
+      updateAmberPopup(state);
 
-    if ((document.getElementById('byfieldGetStatus')?.value || 'すべて') !== 'すべて') {
-      renderFieldTables(loadState());
-    }
-  });
-});
-
-// ▼ボタン（フィールド別）— モーダルを開く
-tbody.querySelectorAll('button.icon-more').forEach(btn=>{
-  btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    const k = e.currentTarget.dataset.entkey;
-    const ent = findEntryByEntKey(k);
-    if (ent) openFieldRankModal(ent);
-  });
-});
-
-// === 3-3: 📅入手日カレンダー（フィールド別シート） ===
-tbody.querySelectorAll('button.cell-cal').forEach(btn=>{
-  btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    const key  = e.currentTarget.dataset.key;
-    const star = e.currentTarget.dataset.star;
-    const s = loadState();
-    const ymd = getAcquired(s, key, star);
-    openCalendarPopover(e.currentTarget, ymd, (picked)=>{
-      const st = loadState();
-      if (picked) setAcquired(st, key, star, picked);
-      else        clearAcquired(st, key, star);
-      if (picked) {
-        e.currentTarget.title = picked;
-        e.currentTarget.classList.add('has-date');
-      } else {
-        e.currentTarget.removeAttribute('title');
-        e.currentTarget.classList.remove('has-date');
+      if ((document.getElementById('byfieldGetStatus')?.value || 'すべて') !== 'すべて') {
+        renderFieldTables(loadState());
       }
     });
   });
-});
-  applyStickyHeaders();
-  refreshAllSticky();
+
+  // ▼ボタン（フィールド別）— モーダルを開く
+  tbody.querySelectorAll('button.icon-more').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const k = e.currentTarget.dataset.entkey;
+      const ent = findEntryByEntKey(k);
+      if (ent) openFieldRankModal(ent);
+    });
+  });
+
+  // === 3-3: 📅入手日カレンダー（フィールド別シート） ===
+  tbody.querySelectorAll('button.cell-cal').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const key  = e.currentTarget.dataset.key;
+      const star = e.currentTarget.dataset.star;
+      const s = loadState();
+      const ymd = getAcquired(s, key, star);
+      openCalendarPopover(e.currentTarget, ymd, (picked)=>{
+        const st = loadState();
+        if (picked) setAcquired(st, key, star, picked);
+        else        clearAcquired(st, key, star);
+        if (picked) {
+          e.currentTarget.title = picked;
+          e.currentTarget.classList.add('has-date');
+        } else {
+          e.currentTarget.removeAttribute('title');
+          e.currentTarget.classList.remove('has-date');
+        }
+      });
+    });
+  });
+}); // ← forEach終端
+
+// ループ外で実行（仕上げ）
+applyStickyHeaders();
+refreshAllSticky();
 
 function ensureRankMiniSummaryContainer() {
   let el = document.getElementById('rankMiniSummary');
