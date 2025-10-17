@@ -2560,6 +2560,15 @@ function afterRenderRankSearch() {
   });
 })();
 
+// 「寝顔グラフ」タブをクリックしたらモーダルを開く
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('#tab-faces-graph');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  openFacesGraph();
+}, true);
+
 // ==== PWA Install Banner (deferred prompt) ====
 
 // バナー要素
@@ -3039,20 +3048,3 @@ function drawFacesGraph(){
     ctx2.restore();
   }
 }
-
-// 「寝顔グラフ」タブをクリックしたらモーダルを開く
-document.addEventListener('click', function (e) {
-  const btn = e.target.closest('#tab-faces-graph');
-  if (!btn) return;
-  e.preventDefault();
-  e.stopPropagation();
-  openFacesGraph();
-}, true);
-
-document.addEventListener('click', function (e) {
-  const btn = e.target.closest('#tab-faces-graph');
-  if (!btn) return;
-  e.preventDefault();
-  e.stopPropagation();
-  openFacesGraph();
-}, true);
