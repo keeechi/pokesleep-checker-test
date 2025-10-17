@@ -1440,6 +1440,7 @@ tbody.querySelectorAll('button.cell-cal').forEach(btn=>{
 
 applyStickyHeaders();
 refreshAllSticky();
+}
 
 // ===================== フィールド別 =====================
 function firstStyleKey(ent){
@@ -1630,6 +1631,7 @@ FIELD_KEYS.forEach(field => {
 // ループ外で実行（仕上げ）
 applyStickyHeaders();
 refreshAllSticky();
+}
 
 function ensureRankMiniSummaryContainer() {
   let el = document.getElementById('rankMiniSummary');
