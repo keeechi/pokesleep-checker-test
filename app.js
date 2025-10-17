@@ -537,15 +537,6 @@ function openQuickMissingPopup(state){
   modal.show();
 }
 
-// タブクリックでモーダルを開く（HowToと同じパターン）
-document.addEventListener('click', function (e) {
-  const btn = e.target.closest('#tab-quickmissing');
-  if (!btn) return;
-  e.preventDefault();
-  e.stopPropagation();
-  openQuickMissingPopup(loadState());
-}, true);
-
 // ==== 固定（sticky）ユーティリティ ====
 
 // タブ高をCSS変数へ
@@ -3075,3 +3066,11 @@ if ('serviceWorker' in navigator) {
   window.openFacesGraph = openFacesGraph;
 
 })(); // <== ここで確実に閉じる（末尾SyntaxErrorを防止）
+
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('#tab-faces-graph');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  openFacesGraph();
+}, true);
