@@ -894,16 +894,6 @@ function renderLimitedBadgeByField(fieldKey){
 function rowKey(row){ return String(row.IconNo || row.No); }                 // 行用キー
 function entKey(ent){ return String(ent.iconNo || ent.no); }                 // まとめ用キー（形態ごと）
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { checked: {} };
-  } catch {
-    return { checked: {} };
-  }
-}
-function saveState(state) { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-
 // 変更があったチェック（key, star, on）を他シートにだけ反映（差分更新）
 function syncOtherViews(key, star, on) {
   // 1) 全寝顔チェックシート（チェックボックスのON/OFF＋セル色）
