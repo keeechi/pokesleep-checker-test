@@ -18,14 +18,6 @@
   <link rel="icon" sizes="192x192" href="./assets/icons/app-icon-192.png">
   <link rel="icon" sizes="512x512" href="./assets/icons/app-icon-512.png">
 
-<script src="assets/icons/pokemon_icons/pokemon_icons.js"></script>
-
-<!-- DOM→画像化ライブラリ -->
-<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="./app.js" defer></script>
-
 <!-- 既存 -->
 <!-- <script src="app.js" defer></script> -->
 
@@ -108,6 +100,7 @@
         data-bs-toggle="tab"
         data-bs-target="#pane-byfield"
         type="button"
+        role="tab" aria-selected="false"
         role="tab"
         aria-label="フィールド別寝顔一覧"
         title="フィールド別寝顔一覧"
@@ -128,6 +121,7 @@
         data-bs-toggle="tab"
         data-bs-target="#pane-search"
         type="button"
+        role="tab" aria-selected="false"
         role="tab"
         aria-label="現在のフィールド・ランクから検索"
         title="現在のフィールド・ランクから検索"
@@ -149,6 +143,7 @@
         class="nav-link tab-icon"
         id="tab-quickmissing"
         type="button"
+        role="tab" aria-selected="false"
         aria-label="未取得寝顔の早見表"
         title="未取得寝顔の早見表"
       >
@@ -161,10 +156,6 @@
           </span>
         </span>
       </button>
-    </li>
-
-    <li class="nav-item" role="presentation">
-      <a id="tab-faces-graph" class="nav-link" href="#">寝顔数グラフ</a>
     </li>
 
     <!-- ハンバーガー -->
@@ -385,6 +376,9 @@
   });
 </script>
   
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="./app.js" defer></script>
+
 <div id="howtoBackdrop" class="howto-backdrop" hidden></div>
 <div id="howtoSheet" class="howto-sheet" role="dialog" aria-modal="true" aria-labelledby="howtoTitle" hidden>
   <div class="howto-sheet__handle" aria-hidden="true"></div>
